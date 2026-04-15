@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Micro vers vibrations rythmiques</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(24rem, calc(100vw - 2rem));
+    }
+
+    h1 {
+      margin: 0 0 1rem;
+      font-size: 1.15rem;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    button {
+      font: inherit;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+    }
+
+    #status {
+      margin: 0;
+      white-space: pre-line;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Micro vers vibrations rythmiques</h1>
+    <div class="controls">
+      <button id="startButton" type="button">Start</button>
+      <button id="stopButton" type="button" disabled>Stop</button>
+    </div>
+    <p id="status">Inactif.</p>
+  </main>
+
+  <script>
+    const startButton = document.getElementById("startButton");
+    const stopButton = document.getElementById("stopButton");
+    const statusNode = document.getElementById("status");
+
+    let audioContext = null;
+    let analyser = null;
+    let sourceNode = null;
+    let microphoneStream = null;
+    let frequencyData = null;
+    let animationId = 0;
+    let running = false;
+    let starting = false;
+    let stopping = false;
+    let pageHidden = false;
+    let vibrationBusyUntil = 0;
+    let lastStatus = "";
+
+    const BAND_LIMITS = {
+      kick: [20, 150],
+      snare: [150, 2000],
+      hihat: [2000, Infinity]
+    };
+
+    const BAND_CONFIG = {
+      kick: {
+        threshold: 22,
+        cooldownMs: 190,
+        label: "KICK"
+      },
+      snare: {
+        threshold: 18,
+        cooldownMs: 150,
+        label: "SNARE"
+      },
+      hihat: {
+        threshold: 12,
+        cooldownMs: 85,
+        label: "HI-HAT"
+      }
+    };
+
+    const bandState = {
+      kick: { lastTriggerAt: 0, energy: 0 },
+      snare: { lastTriggerAt: 0, energy: 0 },
+      hihat: { lastTriggerAt: 0, energy: 0 }
+    };
+
+    function setStatus(message) {
+      if (message !== lastStatus) {
+        statusNode.textContent = message;
+        lastStatus = message;
+      }
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function getPatternDuration(pattern) {
+      let total = 0;
+      for (const value of pattern) {
+        total += value;
+      }
+      return total;
+    }
+
+    function isSecureForMicrophone() {
+      return window.isSecureContext || location.hostname === "localhost" || location.hostname === "127.0.0.1";
+    }
+
+    function describeEnvironmentIssue() {
+      if (!isSecureForMicrophone()) {
+        return "Micro impossible ici.\nOuvre la page en HTTPS.\nGitHub Pages fonctionne, HTTP non.";
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        return "Micro non disponible dans ce navigateur.";
+      }
+
+      if (!navigator.vibrate) {
+        return "Vibration non prise en charge par ce navigateur.";
+      }
+
+      return "";
+    }
+
+    function getErrorMessage(error) {
+      const name = error && error.name ? error.name : "Erreur";
+      const message = error && error.message ? error.message : "";
+
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
+        return "Micro refusé.\nAutorise le micro pour ce site dans Chrome Android.";
+      }
+
+      if (name === "NotFoundError" || name === "DevicesNotFoundError") {
+        return "Aucun micro détecté.";
+      }
+
+      if (name === "NotReadableError" || name === "TrackStartError") {
+        return "Micro occupé ou inaccessible.";
+      }
+
+      if (name === "SecurityError") {
+        return "Contexte non sécurisé.\nUtilise GitHub Pages en HTTPS.";
+      }
+
+      if (name === "AbortError") {
+        return "Accès micro interrompu.";
+      }
+
+      return name + (message ? "\n" + message : "");
+    }
+
+    function resetBandState() {
+      bandState.kick.lastTriggerAt = 0;
+      bandState.snare.lastTriggerAt = 0;
+      bandState.hihat.lastTriggerAt = 0;
+      bandState.kick.energy = 0;
+      bandState.snare.energy = 0;
+      bandState.hihat.energy = 0;
+    }
+
+    function getBinRange(minHz, maxHz) {
+      const nyquist = audioContext.sampleRate / 2;
+      const binWidth = nyquist / analyser.frequencyBinCount;
+      const start = Math.max(1, Math.floor(minHz / binWidth));
+      const safeMaxHz = Number.isFinite(maxHz) ? maxHz : nyquist;
+      const end = Math.min(analyser.frequencyBinCount - 1, Math.floor(safeMaxHz / binWidth));
+
+      return [start, Math.max(start, end)];
+    }
+
+    function getBandEnergy(minHz, maxHz) {
+      const [start, end] = getBinRange(minHz, maxHz);
+      let sum = 0;
+      let count = 0;
+
+      for (let i = start; i <= end; i += 1) {
+        sum += frequencyData[i];
+        count += 1;
+      }
+
+      return count > 0 ? sum / count : 0;
+    }
+
+    function buildPattern(type, intensity) {
+      if (type === "kick") {
+        const pulse = Math.round(30 + intensity * 60);
+        return [pulse, 70];
+      }
+
+      if (type === "snare") {
+        const pulse = Math.round(18 + intensity * 28);
+        const gap = Math.round(24 - intensity * 8);
+        return [pulse, gap, pulse, 60];
+      }
+
+      const micro = Math.round(8 + intensity * 10);
+      return [micro, 12, micro, 12, micro, 40];
+    }
+
+    function updateBandEnergies() {
+      analyser.getByteFrequencyData(frequencyData);
+
+      bandState.kick.energy = getBandEnergy(BAND_LIMITS.kick[0], BAND_LIMITS.kick[1]);
+      bandState.snare.energy = getBandEnergy(BAND_LIMITS.snare[0], BAND_LIMITS.snare[1]);
+      bandState.hihat.energy = getBandEnergy(BAND_LIMITS.hihat[0], BAND_LIMITS.hihat[1]);
+    }
+
+    function selectDominantBand(now) {
+      let bestBand = null;
+      let bestScore = 0;
+
+      for (const [type, config] of Object.entries(BAND_CONFIG)) {
+        const energy = bandState[type].energy;
+        const score = energy - config.threshold;
+        const ready = now - bandState[type].lastTriggerAt >= config.cooldownMs;
+
+        if (ready && score > bestScore) {
+          bestBand = type;
+          bestScore = score;
+        }
+      }
+
+      return bestBand;
+    }
+
+    function tick(now) {
+      if (!running || !analyser || !frequencyData) {
+        return;
+      }
+
+      updateBandEnergies();
+
+      if (pageHidden || now < vibrationBusyUntil) {
+        animationId = requestAnimationFrame(tick);
+        return;
+      }
+
+      const selectedBand = selectDominantBand(now);
+      if (selectedBand) {
+        const config = BAND_CONFIG[selectedBand];
+        const energy = bandState[selectedBand].energy;
+        const intensity = clamp((energy - config.threshold) / (170 - config.threshold), 0, 1);
+        const pattern = buildPattern(selectedBand, intensity);
+
+        navigator.vibrate(pattern);
+        bandState[selectedBand].lastTriggerAt = now;
+        vibrationBusyUntil = now + getPatternDuration(pattern);
+        setStatus("Actif: " + config.label);
+      } else {
+        setStatus("Actif.");
+      }
+
+      animationId = requestAnimationFrame(tick);
+    }
+
+    async function stop() {
+      if (stopping) {
+        return;
+      }
+
+      stopping = true;
+      running = false;
+      starting = false;
+
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+        animationId = 0;
+      }
+
+      if (sourceNode) {
+        sourceNode.disconnect();
+        sourceNode = null;
+      }
+
+      if (analyser) {
+        analyser.disconnect();
+        analyser = null;
+      }
+
+      if (microphoneStream) {
+        microphoneStream.getTracks().forEach((track) => track.stop());
+        microphoneStream = null;
+      }
+
+      if (audioContext) {
+        const contextToClose = audioContext;
+        audioContext = null;
+        try {
+          await contextToClose.close();
+        } catch (error) {
+          // Ignore les erreurs de fermeture du contexte.
+        }
+      }
+
+      frequencyData = null;
+      resetBandState();
+      pageHidden = false;
+      vibrationBusyUntil = 0;
+      navigator.vibrate?.(0);
+      startButton.disabled = false;
+      stopButton.disabled = true;
+      setStatus("Inactif.");
+      stopping = false;
+    }
+
+    async function start() {
+      if (running || starting || stopping) {
+        return;
+      }
+
+      const issue = describeEnvironmentIssue();
+      if (issue) {
+        setStatus(issue);
+        return;
+      }
+
+      try {
+        starting = true;
+        startButton.disabled = true;
+        setStatus("Demande micro...");
+
+        microphoneStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        });
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        await audioContext.resume();
+
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 2048;
+        analyser.smoothingTimeConstant = 0.72;
+
+        sourceNode = audioContext.createMediaStreamSource(microphoneStream);
+        sourceNode.connect(analyser);
+
+        frequencyData = new Uint8Array(analyser.frequencyBinCount);
+        resetBandState();
+        running = true;
+        stopButton.disabled = false;
+        setStatus("Actif.");
+        animationId = requestAnimationFrame(tick);
+      } catch (error) {
+        await stop();
+        setStatus(getErrorMessage(error));
+      } finally {
+        starting = false;
+        if (!running) {
+          startButton.disabled = false;
+        }
+      }
+    }
+
+    startButton.addEventListener("click", start);
+    stopButton.addEventListener("click", () => {
+      stop();
+    });
+
+    document.addEventListener("visibilitychange", () => {
+      pageHidden = document.hidden;
+
+      if (pageHidden) {
+        vibrationBusyUntil = 0;
+        navigator.vibrate?.(0);
+      }
+    });
+
+    window.addEventListener("beforeunload", () => {
+      navigator.vibrate?.(0);
+      if (microphoneStream) {
+        microphoneStream.getTracks().forEach((track) => track.stop());
+      }
+    });
+  </script>
+</body>
+</html>
