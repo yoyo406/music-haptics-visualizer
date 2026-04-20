@@ -1,201 +1,1759 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Neural Network - Hand Control</title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Hand Shape Controller - Contrôlez une forme 3D avec vos mains" />
+  <meta name="theme-color" content="#07070f" />
+  <title>Hand Shape Controller - Ultimate Edition</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&display=swap');
 
-    <style>
-        body { margin: 0; overflow: hidden; background: #000; font-family: 'Courier New', Courier, monospace; }
-        canvas { display: block; }
-        #ui {
-            position: absolute; top: 20px; left: 20px; color: #00f2ff;
-            pointer-events: none; text-transform: uppercase; letter-spacing: 2px;
-        }
-        .stats { font-size: 12px; margin-top: 10px; opacity: 0.7; }
-        .hint {
-            position: absolute; bottom: 30px; width: 100%; text-align: center;
-            color: #fff; font-size: 14px; opacity: 0.5; animation: pulse 2s infinite;
-        }
-        @keyframes pulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.8; } }
-    </style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       DARK MODE (DÉFAUT)
+       ════════════════════════════════════════════════════════════════ */
+
+    :root {
+      --color-bg: #07070f;
+      --color-bg-secondary: #0a0a14;
+      --color-bg-tertiary: #0f0f1a;
+      --color-accent: #00f5c4;
+      --color-accent-dark: #00c9a3;
+      --color-accent2: #f53c8a;
+      --color-accent2-dark: #c42d6d;
+      --color-text: #d4d4e0;
+      --color-text-secondary: rgba(255, 255, 255, 0.6);
+      --color-text-tertiary: rgba(255, 255, 255, 0.35);
+      --color-border: rgba(255, 255, 255, 0.08);
+      --color-border-strong: rgba(255, 255, 255, 0.15);
+      --color-panel: rgba(255, 255, 255, 0.04);
+      --color-panel-hover: rgba(255, 255, 255, 0.08);
+      --color-shadow: rgba(0, 0, 0, 0.5);
+      --color-overlay: rgba(7, 7, 15, 0.96);
+      --color-input-bg: rgba(0, 0, 0, 0.3);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       LIGHT MODE
+       ════════════════════════════════════════════════════════════════ */
+
+    body.light-mode {
+      --color-bg: #ffffff;
+      --color-bg-secondary: #f8f9fa;
+      --color-bg-tertiary: #f0f2f5;
+      --color-accent: #0d9d78;
+      --color-accent-dark: #0a7a5e;
+      --color-accent2: #c41e3a;
+      --color-accent2-dark: #a01528;
+      --color-text: #1a1a1a;
+      --color-text-secondary: #333333;
+      --color-text-tertiary: #666666;
+      --color-border: rgba(0, 0, 0, 0.12);
+      --color-border-strong: rgba(0, 0, 0, 0.2);
+      --color-panel: rgba(0, 0, 0, 0.04);
+      --color-panel-hover: rgba(0, 0, 0, 0.08);
+      --color-shadow: rgba(0, 0, 0, 0.15);
+      --color-overlay: rgba(255, 255, 255, 0.98);
+      --color-input-bg: rgba(0, 0, 0, 0.05);
+    }
+
+    /* Spacing & Font Sizes */
+    :root {
+      --space-xs: 4px;
+      --space-sm: 8px;
+      --space-md: 12px;
+      --space-lg: 16px;
+      --space-xl: 24px;
+      --space-2xl: 32px;
+
+      --radius-sm: 4px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+
+      --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-base: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      --transition-slow: 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+
+      --z-base: 1;
+      --z-overlay: 100;
+      --z-modal: 1000;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       GLOBAL
+       ════════════════════════════════════════════════════════════════ */
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+    }
+
+    body {
+      background: var(--color-bg);
+      color: var(--color-text);
+      font-family: 'DM Mono', monospace;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: background-color var(--transition-base), color var(--transition-base);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       HEADER
+       ════════════════════════════════════════════════════════════════ */
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-md) var(--space-lg);
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-shadow);
+      backdrop-filter: blur(12px);
+      z-index: var(--z-base);
+      flex-shrink: 0;
+      transition: all var(--transition-base);
+      box-shadow: 0 2px 8px var(--color-shadow);
+    }
+
+    body.light-mode header {
+      background: rgba(255, 255, 255, 0.7);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    header h1 {
+      font-size: 12px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      transition: color var(--transition-base);
+      flex: 1;
+      font-weight: 500;
+    }
+
+    #header-controls {
+      display: flex;
+      gap: var(--space-md);
+      align-items: center;
+    }
+
+    /* ════════════════��═══════════════════════════════════════════════
+       BUTTONS
+       ════════════════════════════════════════════════════════════════ */
+
+    button {
+      cursor: pointer;
+      border: none;
+      transition: all var(--transition-fast);
+      font-family: 'DM Mono', monospace;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    button:active {
+      transform: scale(0.98);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    #theme-toggle {
+      background: var(--color-panel);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+      padding: var(--space-sm) var(--space-md);
+      font-size: 10px;
+      border-radius: var(--radius-sm);
+    }
+
+    #theme-toggle:hover {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+      background: var(--color-panel-hover);
+      box-shadow: 0 0 12px rgba(0, 0, 0, 0.2);
+    }
+
+    body.light-mode #theme-toggle:hover {
+      box-shadow: 0 0 12px rgba(13, 157, 120, 0.2);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       STATUS
+       ════════════════════════���═══════════════════════════════════════ */
+
+    #status {
+      font-size: 10px;
+      padding: var(--space-sm) var(--space-md);
+      border-radius: 20px;
+      border: 1px solid var(--color-border);
+      background: var(--color-panel);
+      letter-spacing: 0.12em;
+      transition: all var(--transition-base);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      color: var(--color-text);
+      white-space: nowrap;
+    }
+
+    #status.ready {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+      background: rgba(13, 157, 120, 0.1);
+      box-shadow: 0 0 16px rgba(13, 157, 120, 0.15);
+    }
+
+    #status.loading {
+      border-color: #ff9800;
+      color: #ff9800;
+      background: rgba(255, 152, 0, 0.1);
+      animation: pulse-status 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-status {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    #status.error {
+      border-color: var(--color-accent2);
+      color: var(--color-accent2);
+      background: rgba(196, 30, 58, 0.1);
+    }
+
+    #camera-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-accent2);
+      animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      display: inline-block;
+      transition: background var(--transition-base);
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.2); }
+    }
+
+    #camera-indicator.inactive {
+      animation: none;
+      opacity: 0.3;
+      background: var(--color-text-tertiary);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       MAIN LAYOUT
+       ════════════════════════════════════════════════════════════════ */
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      overflow: hidden;
+      gap: 0;
+    }
+
+    #canvas-wrap {
+      position: relative;
+      overflow: hidden;
+      background: var(--color-bg-secondary);
+      transition: background var(--transition-base);
+    }
+
+    #three-canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ═══════════════════���════════════════════════════════════════════
+       VIDEO FEED
+       ════════════════════════════════════════════════════════════════ */
+
+    #video-feed {
+      position: absolute;
+      bottom: var(--space-lg);
+      left: var(--space-lg);
+      width: 192px;
+      height: 144px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      overflow: hidden;
+      opacity: 0.8;
+      transition: all var(--transition-base);
+      background: var(--color-bg);
+      box-shadow: 0 4px 16px var(--color-shadow);
+    }
+
+    #video-feed:hover {
+      opacity: 1;
+      box-shadow: 0 8px 24px var(--color-shadow);
+      transform: translateY(-2px);
+    }
+
+    #video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    #lm-canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(-1);
+    }
+
+    .vid-label {
+      position: absolute;
+      bottom: var(--space-sm);
+      left: var(--space-sm);
+      font-size: 9px;
+      letter-spacing: 0.15em;
+      color: var(--color-accent);
+      z-index: 2;
+      font-weight: 600;
+      transition: color var(--transition-base);
+      text-transform: uppercase;
+      background: rgba(0, 0, 0, 0.4);
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+
+    body.light-mode .vid-label {
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       ZOOM INDICATOR
+       ════════════════════════════════════════════════════════════════ */
+
+    #zoom-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 36px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity var(--transition-fast);
+      filter: drop-shadow(0 0 10px var(--color-accent));
+      text-shadow: 0 0 20px var(--color-accent);
+    }
+
+    #zoom-indicator.show {
+      opacity: 1;
+      animation: zoom-pulse 0.3s ease-out;
+    }
+
+    @keyframes zoom-pulse {
+      0% { transform: translate(-50%, -50%) scale(0.8); }
+      100% { transform: translate(-50%, -50%) scale(1); }
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       GESTURE BADGE
+       ════════════════════════════════════════════════════════════════ */
+
+    #gesture-badge {
+      position: absolute;
+      top: var(--space-lg);
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      padding: var(--space-sm) var(--space-lg);
+      border-radius: 20px;
+      border: 1px solid var(--color-border);
+      background: var(--color-shadow);
+      backdrop-filter: blur(8px);
+      transition: all var(--transition-fast);
+      pointer-events: none;
+      white-space: nowrap;
+      color: var(--color-text);
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    body.light-mode #gesture-badge {
+      background: rgba(255, 255, 255, 0.8);
+    }
+
+    #gesture-badge.active {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+      background: rgba(13, 157, 120, 0.12);
+      box-shadow: 0 0 20px rgba(13, 157, 120, 0.2);
+    }
+
+    body.light-mode #gesture-badge.active {
+      background: rgba(13, 157, 120, 0.15);
+      box-shadow: 0 0 20px rgba(13, 157, 120, 0.15);
+    }
+
+    /* ═══════════════════════════════════════��════════════════════════
+       DEBUG STATS
+       ════════════════════════════════════════════════════════════════ */
+
+    #debug-stats {
+      position: absolute;
+      top: 70px;
+      right: var(--space-lg);
+      font-size: 9px;
+      color: var(--color-accent);
+      background: var(--color-overlay);
+      padding: var(--space-md);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      display: none;
+      white-space: pre-wrap;
+      font-family: 'Courier New', monospace;
+      max-width: 280px;
+      box-shadow: 0 4px 16px var(--color-shadow);
+      transition: all var(--transition-base);
+      backdrop-filter: blur(8px);
+      z-index: var(--z-base);
+      max-height: 40vh;
+      overflow-y: auto;
+      line-height: 1.5;
+    }
+
+    #debug-stats.show {
+      display: block;
+      animation: slideIn 0.3s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       SIDE PANEL
+       ════════════════════════════════════════════════════════════════ */
+
+    #side-panel {
+      border-left: 1px solid var(--color-border);
+      background: var(--color-shadow);
+      backdrop-filter: blur(10px);
+      padding: var(--space-lg);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+      overflow-y: auto;
+      overflow-x: hidden;
+      transition: all var(--transition-base);
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-accent) transparent;
+    }
+
+    body.light-mode #side-panel {
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    #side-panel::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    #side-panel::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    #side-panel::-webkit-scrollbar-thumb {
+      background: var(--color-accent);
+      border-radius: 3px;
+      transition: background var(--transition-fast);
+    }
+
+    #side-panel::-webkit-scrollbar-thumb:hover {
+      background: var(--color-accent2);
+    }
+
+    .panel-section {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-md);
+    }
+
+    .panel-section h2 {
+      font-size: 9px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--color-text-tertiary);
+      margin: 0;
+      transition: color var(--transition-base);
+      font-weight: 600;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       SHAPE & COLOR SELECTORS
+       ════════════════════════════════════════════════════════════════ */
+
+    .shape-selector {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-sm);
+    }
+
+    .shape-btn {
+      background: var(--color-panel);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+      font-size: 10px;
+      padding: var(--space-md);
+      border-radius: var(--radius-md);
+      transition: all var(--transition-fast);
+      letter-spacing: 0.04em;
+      text-align: center;
+      text-transform: uppercase;
+      font-weight: 500;
+      cursor: pointer;
+    }
+
+    .shape-btn:hover {
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+      background: var(--color-panel-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 2px 8px var(--color-shadow);
+    }
+
+    .shape-btn.active {
+      background: rgba(13, 157, 120, 0.15);
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+      box-shadow: 0 0 12px rgba(13, 157, 120, 0.2);
+      font-weight: 600;
+    }
+
+    body.light-mode .shape-btn.active {
+      background: rgba(13, 157, 120, 0.12);
+      box-shadow: 0 0 12px rgba(13, 157, 120, 0.15);
+    }
+
+    .color-swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-md);
+    }
+
+    .swatch {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid transparent;
+      transition: all var(--transition-fast);
+      box-shadow: 0 2px 8px var(--color-shadow);
+      flex-shrink: 0;
+    }
+
+    .swatch:hover {
+      transform: scale(1.15);
+      box-shadow: 0 4px 12px var(--color-shadow);
+    }
+
+    .swatch.active {
+      border-color: var(--color-text);
+      transform: scale(1.1);
+      box-shadow: 0 4px 16px var(--color-shadow);
+    }
+
+    body.light-mode .swatch.active {
+      border-color: #333;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       INFO ROWS
+       ════════════════════════════════════════════════════════════════ */
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      padding: var(--space-md) 0;
+      border-bottom: 1px solid var(--color-border);
+      transition: all var(--transition-base);
+      align-items: center;
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-row .lbl {
+      color: var(--color-text-tertiary);
+      letter-spacing: 0.1em;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .info-row .val {
+      color: var(--color-accent);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      font-family: 'Courier New', monospace;
+      background: var(--color-input-bg);
+      padding: 2px 6px;
+      border-radius: 3px;
+      min-width: 50px;
+      text-align: right;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       CARDS
+       ════════════════════════════════════════════════════════════════ */
+
+    .gesture-card {
+      background: var(--color-panel);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      font-size: 10px;
+      line-height: 1.8;
+      transition: all var(--transition-fast);
+      color: var(--color-text);
+    }
+
+    .gesture-card:hover {
+      background: var(--color-panel-hover);
+      border-color: var(--color-accent);
+      box-shadow: 0 2px 8px var(--color-shadow);
+    }
+
+    .gesture-card .gkey {
+      color: var(--color-accent2);
+      font-weight: 700;
+      transition: color var(--transition-fast);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hint-card {
+      background: rgba(13, 157, 120, 0.1);
+      border: 1px solid var(--color-border-strong);
+      border-radius: var(--radius-md);
+      padding: var(--space-md);
+      font-size: 9px;
+      line-height: 1.7;
+      color: var(--color-text);
+      transition: all var(--transition-base);
+    }
+
+    body.light-mode .hint-card {
+      background: rgba(13, 157, 120, 0.08);
+      border-color: rgba(13, 157, 120, 0.3);
+    }
+
+    .hint-card strong {
+      color: var(--color-accent);
+      font-weight: 700;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       LOADING & MODALS
+       ════════════════════════════════════════════════════════════════ */
+
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      background: var(--color-overlay);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-xl);
+      z-index: var(--z-modal);
+      backdrop-filter: blur(4px);
+    }
+
+    .loader-ring {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 3px solid var(--color-border);
+      border-top-color: var(--color-accent);
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #loading-overlay p {
+      font-size: 10px;
+      letter-spacing: 0.22em;
+      color: var(--color-text-tertiary);
+      transition: color var(--transition-base);
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    #start-btn {
+      display: none;
+      background: transparent;
+      border: 1px solid var(--color-accent);
+      color: var(--color-accent);
+      font-size: 11px;
+      padding: var(--space-md) var(--space-xl);
+      letter-spacing: 0.2em;
+      border-radius: var(--radius-sm);
+      transition: all var(--transition-base);
+      text-transform: uppercase;
+      position: relative;
+      overflow: hidden;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    #start-btn:hover {
+      background: rgba(13, 157, 120, 0.15);
+      box-shadow: 0 0 20px rgba(13, 157, 120, 0.2);
+      transform: translateY(-2px);
+    }
+
+    #start-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(13, 157, 120, 0.3), transparent);
+      transition: left 0.5s;
+    }
+
+    #start-btn:hover::before {
+      left: 100%;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       RESPONSIVE DESIGN
+       ════════════════════════════════════════════════════════════════ */
+
+    @media (max-width: 1024px) {
+      main {
+        grid-template-columns: 1fr 240px;
+      }
+
+      #side-panel {
+        padding: var(--space-md);
+        gap: var(--space-md);
+      }
+
+      .color-swatches {
+        gap: var(--space-sm);
+      }
+
+      .swatch {
+        width: 28px;
+        height: 28px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      #side-panel {
+        display: none;
+        position: fixed;
+        right: 0;
+        top: 50px;
+        width: 260px;
+        height: calc(100vh - 50px);
+        z-index: var(--z-overlay);
+        border-left: 1px solid var(--color-border);
+        border-radius: 0;
+        box-shadow: -4px 0 16px var(--color-shadow);
+        overflow-y: auto;
+        overflow-x: hidden;
+      }
+
+      #side-panel.show {
+        display: flex;
+      }
+
+      header h1 {
+        font-size: 11px;
+      }
+
+      #theme-toggle {
+        padding: var(--space-xs) var(--space-sm);
+        font-size: 9px;
+      }
+
+      #video-feed {
+        width: 150px;
+        height: 112px;
+      }
+
+      #gesture-badge {
+        font-size: 10px;
+        padding: var(--space-sm) var(--space-md);
+      }
+
+      #debug-stats {
+        max-width: 200px;
+        font-size: 8px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      header {
+        padding: var(--space-sm) var(--space-md);
+      }
+
+      header h1 {
+        font-size: 10px;
+      }
+
+      #status {
+        font-size: 9px;
+        padding: var(--space-xs) var(--space-sm);
+      }
+
+      #video-feed {
+        width: 120px;
+        height: 90px;
+        bottom: var(--space-md);
+        left: var(--space-md);
+      }
+
+      #camera-indicator {
+        width: 6px;
+        height: 6px;
+      }
+
+      #theme-toggle {
+        padding: 3px 6px;
+        font-size: 8px;
+      }
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       ANIMATIONS
+       ════════════════════════════════════════════════════════════════ */
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .panel-section {
+      animation: slideUp var(--transition-slow) ease-out backwards;
+    }
+
+    .panel-section:nth-child(1) { animation-delay: 0.1s; }
+    .panel-section:nth-child(2) { animation-delay: 0.2s; }
+    .panel-section:nth-child(3) { animation-delay: 0.3s; }
+    .panel-section:nth-child(4) { animation-delay: 0.4s; }
+    .panel-section:nth-child(5) { animation-delay: 0.5s; }
+    .panel-section:nth-child(6) { animation-delay: 0.6s; }
+  </style>
 </head>
 <body>
 
-<div id="ui">
-    <div style="font-size: 24px; font-weight: bold;">Neural Core v2.0</div>
-    <div id="status" class="stats">Initialisation du flux vidéo...</div>
-    <div id="zoom-level" class="stats">Scale: 1.0x</div>
-</div>
+<header>
+  <h1>✦ Hand Shape Controller</h1>
+  <div id="header-controls">
+    <button id="theme-toggle" title="Toggle dark/light mode">🌙 DARK</button>
+    <div id="status" class="loading">
+      <span id="status-text">⟳ LOADING</span>
+      <div id="camera-indicator" class="inactive"></div>
+    </div>
+  </div>
+</header>
 
-<div class="hint">Ecartez le pouce et l'index pour zoomer • Approchez vos mains des neurones</div>
+<main>
+  <div id="canvas-wrap">
+    <canvas id="three-canvas"></canvas>
 
-<video id="input_video" style="display:none"></video>
-<canvas id="output_canvas"></canvas>
+    <div id="video-feed">
+      <video id="video" autoplay muted playsinline></video>
+      <canvas id="lm-canvas"></canvas>
+      <div class="vid-label">LIVE</div>
+    </div>
+
+    <div id="zoom-indicator">←→</div>
+    <div id="gesture-badge">— EN ATTENTE DE MAIN —</div>
+    <div id="debug-stats"></div>
+
+    <div id="loading-overlay">
+      <div class="loader-ring"></div>
+      <p id="load-msg">CHARGEMENT MEDIAPIPE...</p>
+      <button id="start-btn">▶ DÉMARRER CAMÉRA</button>
+    </div>
+  </div>
+
+  <div id="side-panel">
+    <div class="panel-section">
+      <h2>Forme</h2>
+      <div class="shape-selector">
+        <button class="shape-btn active" data-shape="box">■ Cube</button>
+        <button class="shape-btn" data-shape="sphere">● Sphère</button>
+        <button class="shape-btn" data-shape="torus">◎ Torus</button>
+        <button class="shape-btn" data-shape="cone">△ Cône</button>
+        <button class="shape-btn" data-shape="octahedron">◈ Octa</button>
+        <button class="shape-btn" data-shape="torusknot">⊗ Nœud</button>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h2>Couleur</h2>
+      <div class="color-swatches">
+        <div class="swatch active" data-color="#00f5c4" style="background:#00f5c4" title="Cyan"></div>
+        <div class="swatch" data-color="#f53c8a" style="background:#f53c8a" title="Rose"></div>
+        <div class="swatch" data-color="#6c3fff" style="background:#6c3fff" title="Violet"></div>
+        <div class="swatch" data-color="#ffaa00" style="background:#ffaa00" title="Orange"></div>
+        <div class="swatch" data-color="#00aaff" style="background:#00aaff" title="Bleu"></div>
+        <div class="swatch" data-color="#ff6b35" style="background:#ff6b35" title="Red"></div>
+        <div class="swatch" data-color="#ffffff" style="background:#ffffff;border:2px solid #999" title="Blanc"></div>
+        <div class="swatch" data-color="#39ff14" style="background:#39ff14" title="Lime"></div>
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h2>Données Main</h2>
+      <div class="info-row"><span class="lbl">X</span><span class="val" id="d-x">—</span></div>
+      <div class="info-row"><span class="lbl">Y</span><span class="val" id="d-y">—</span></div>
+      <div class="info-row"><span class="lbl">PINCE</span><span class="val" id="d-pinch">—</span></div>
+      <div class="info-row"><span class="lbl">SCALE</span><span class="val" id="d-scale">—</span></div>
+      <div class="info-row"><span class="lbl">GESTE</span><span class="val" id="d-gesture">—</span></div>
+      <div class="info-row"><span class="lbl">FPS</span><span class="val" id="d-fps">—</span></div>
+      <div class="info-row"><span class="lbl">LATENCE</span><span class="val" id="d-latency">—</span></div>
+    </div>
+
+    <div class="panel-section">
+      <h2>Contrôles</h2>
+      <div class="gesture-card">
+        <span class="gkey">☝ Index</span> → Déplacer<br>
+        <span class="gkey">✌ Deux doigts</span> → Rotation<br>
+        <span class="gkey">🤏 Pince + →</span> → Zoom in<br>
+        <span class="gkey">🤏 Pince + ←</span> → Zoom out<br>
+        <span class="gkey">✊ Poing</span> → Reset
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h2>Raccourcis</h2>
+      <div class="gesture-card">
+        <span class="gkey">Ctrl+D</span> → Debug<br>
+        <span class="gkey">Ctrl+H</span> → Haute perf<br>
+        <span class="gkey">Ctrl+E</span> → Export
+      </div>
+    </div>
+
+    <div class="panel-section">
+      <h2>Infos Session</h2>
+      <div class="hint-card">
+        <strong>Mode:</strong> <span id="mode-info">Normal</span><br>
+        <strong>Temps:</strong> <span id="session-time">00:00</span><br>
+        <strong>Détections:</strong> <span id="detection-count">0</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
 <script>
-    const videoElement = document.getElementById('input_video');
-    const canvasElement = document.getElementById('output_canvas');
-    const canvasCtx = canvasElement.getContext('2d');
-    const statusText = document.getElementById('status');
-    const zoomText = document.getElementById('zoom-level');
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════════════
 
-    let nodes = [];
-    let currentScale = 1;
-    let targetScale = 1;
-    const NODE_COUNT = 60;
-    const CONNECT_DIST = 180;
+const CONFIG = {
+  MEDIAPIPE_CONFIG: {
+    maxNumHands: 1,
+    modelComplexity: 0,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  },
+  MEDIAPIPE_SKIP: 1,
+  MIN_CONFIDENCE_THRESHOLD: 0.45,
+  DETECTION_TIMEOUT: 500,
+  GESTURE_HISTORY_LENGTH: 4,
+  PINCH_THRESHOLD: 0.25,
+  ZOOM_SENSITIVITY: 8,
+  ROTATION_SENSITIVITY: 25,
+  DEADZONE_THRESHOLD: 0.001,
+  LERP_POSITION: 0.15,
+  LERP_SCALE: 0.15,
+  LERP_ROTATION: 0.12,
+  SCALE_MIN: 0.15,
+  SCALE_MAX: 4.0,
+  FOG_DENSITY: 0.035,
+  HIGH_PERF_MODE: false,
+  DEBUG_MODE: false,
+};
 
-    // --- INITIALISATION DU RESEAU ---
-    function initNodes() {
-        canvasElement.width = window.innerWidth;
-        canvasElement.height = window.innerHeight;
-        nodes = [];
-        for (let i = 0; i < NODE_COUNT; i++) {
-            nodes.push({
-                x: Math.random() * canvasElement.width,
-                y: Math.random() * canvasElement.height,
-                vx: (Math.random() - 0.5) * 1.5,
-                vy: (Math.random() - 0.5) * 1.5,
-                radius: Math.random() * 2 + 1
-            });
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  SESSION MANAGER
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+class SessionManager {
+  constructor() {
+    this.sessionId = this.generateId();
+    this.startTime = Date.now();
+    this.gestureLog = {};
+    this.peakFps = 0;
+    this.totalDetections = 0;
+    this.settings = {
+      theme: localStorage.getItem('app-theme') || 'dark',
+      lastShape: localStorage.getItem('app-shape') || 'box',
+      lastColor: localStorage.getItem('app-color') || '#00f5c4',
+    };
+  }
+
+  generateId() {
+    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  logGesture(gesture) {
+    this.gestureLog[gesture] = (this.gestureLog[gesture] || 0) + 1;
+    this.totalDetections++;
+  }
+
+  exportSession() {
+    const duration = (Date.now() - this.startTime) / 1000;
+    return {
+      id: this.sessionId,
+      duration: duration.toFixed(2) + 's',
+      totalDetections: this.totalDetections,
+      gestures: this.gestureLog,
+      peakFps: this.peakFps,
+      settings: this.settings,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  getSessionDuration() {
+    return Math.floor((Date.now() - this.startTime) / 1000);
+  }
+
+  saveToDisk() {
+    const data = this.exportSession();
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `hand-controller-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+const session = new SessionManager();
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  PERF METRICS
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+class PerfMetrics {
+  constructor() {
+    this.frameCount = 0;
+    this.detectionFrames = 0;
+    this.lastFpsUpdate = performance.now();
+    this.currentFps = 0;
+    this.mpLatency = [];
+  }
+
+  startMpTimer() { return performance.now(); }
+  endMpTimer(start) {
+    const delta = performance.now() - start;
+    this.mpLatency.push(delta);
+    if (this.mpLatency.length > 30) this.mpLatency.shift();
+    return delta;
+  }
+
+  updateFrame() {
+    this.frameCount++;
+    const now = performance.now();
+    if (now - this.lastFpsUpdate >= 1000) {
+      this.currentFps = this.frameCount;
+      session.peakFps = Math.max(session.peakFps, this.currentFps);
+      this.frameCount = 0;
+      this.lastFpsUpdate = now;
+    }
+  }
+
+  getStats() {
+    const avgMpLatency = this.mpLatency.length ? 
+      (this.mpLatency.reduce((a, b) => a + b) / this.mpLatency.length).toFixed(1) : 0;
+    return {
+      fps: this.currentFps,
+      mpLatency: avgMpLatency + 'ms',
+      detectionRate: this.detectionFrames > 0 ? 
+        (this.detectionFrames / (this.frameCount + this.detectionFrames) * 100).toFixed(1) + '%' : '0%',
+      detectedHands: this.detectionFrames,
+    };
+  }
+}
+
+const perf = new PerfMetrics();
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  THREE.JS
+// ═════════════════════════════════════════════════════════���═════════════════════════
+
+const canvas3d = document.getElementById('three-canvas');
+const wrap = document.getElementById('canvas-wrap');
+
+const renderer = new THREE.WebGLRenderer({ 
+  canvas: canvas3d, 
+  antialias: true, 
+  powerPreference: 'high-performance',
+  alpha: false,
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x07070f);
+scene.fog = new THREE.FogExp2(0x07070f, CONFIG.FOG_DENSITY);
+
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
+camera.position.set(0, 0, 9);
+
+scene.add(new THREE.AmbientLight(0x0a0a1a, 1));
+
+const light1 = new THREE.PointLight(0x00f5c4, 3, 25);
+light1.position.set(5, 5, 5);
+scene.add(light1);
+
+const light2 = new THREE.PointLight(0xf53c8a, 2, 20);
+light2.position.set(-5, -3, 3);
+scene.add(light2);
+
+const dLight = new THREE.DirectionalLight(0xffffff, 0.6);
+dLight.position.set(0, 10, 5);
+dLight.castShadow = true;
+scene.add(dLight);
+
+const grid = new THREE.GridHelper(26, 26, 0x111122, 0x111122);
+grid.position.y = -3.5;
+scene.add(grid);
+
+const pGeo = new THREE.BufferGeometry();
+const pArr = new Float32Array(500 * 3);
+for (let i = 0; i < pArr.length; i++) pArr[i] = (Math.random() - 0.5) * 35;
+pGeo.setAttribute('position', new THREE.BufferAttribute(pArr, 3));
+scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({ color: 0x223355, size: 0.04 })));
+
+const GEOS = {
+  box: () => new THREE.BoxGeometry(1.6, 1.6, 1.6),
+  sphere: () => new THREE.SphereGeometry(1.1, 48, 48),
+  torus: () => new THREE.TorusGeometry(1.0, 0.38, 20, 80),
+  cone: () => new THREE.ConeGeometry(1.0, 2.0, 48),
+  octahedron: () => new THREE.OctahedronGeometry(1.3),
+  torusknot: () => new THREE.TorusKnotGeometry(0.75, 0.25, 120, 20),
+};
+
+let mesh = null;
+let activeColor = session.settings.lastColor;
+let activeShape = session.settings.lastShape;
+
+function buildMesh(type, hexColor) {
+  if (mesh) { 
+    scene.remove(mesh); 
+    mesh.geometry.dispose(); 
+    mesh.material.dispose(); 
+  }
+  const col = new THREE.Color(hexColor);
+  mesh = new THREE.Mesh(
+    GEOS[type](),
+    new THREE.MeshPhongMaterial({
+      color: col,
+      emissive: col.clone().multiplyScalar(0.12),
+      shininess: 90,
+      specular: new THREE.Color(0xffffff),
+    })
+  );
+  mesh.castShadow = true;
+  scene.add(mesh);
+}
+buildMesh(activeShape, activeColor);
+
+const S = {
+  targetX: 0, curX: 0,
+  targetY: 0, curY: 0,
+  targetSc: 1, curSc: 1,
+  rotX: 0, rotY: 0,
+  gesture: 'NONE',
+  handVisible: false,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  GESTURE DETECTION
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+const gh = new Array(CONFIG.GESTURE_HISTORY_LENGTH).fill('NONE');
+let ghIdx = 0;
+
+const TIP = [8, 12, 16, 20];
+const MCP = [5, 9, 13, 17];
+const tempPalm = { x: 0, y: 0 };
+const fingerExtension = [false, false, false, false];
+
+function palmSize(lm) {
+  return Math.hypot(lm[9].x - lm[0].x, lm[9].y - lm[0].y) + 0.0001;
+}
+
+function palmCenter(lm, out = tempPalm) {
+  const ids = [0, 5, 9, 13, 17];
+  let x = 0, y = 0;
+  for (let i = 0; i < ids.length; i++) { 
+    x += lm[ids[i]].x; 
+    y += lm[ids[i]].y; 
+  }
+  out.x = x * 0.2;
+  out.y = y * 0.2;
+  return out;
+}
+
+function normPinch(lm) {
+  const dx = lm[4].x - lm[8].x;
+  const dy = lm[4].y - lm[8].y;
+  return Math.hypot(dx, dy) / palmSize(lm);
+}
+
+function rawGesture(lm) {
+  if (normPinch(lm) < CONFIG.PINCH_THRESHOLD) return 'PINCE';
+
+  let count = 0;
+  for (let i = 0; i < 4; i++) {
+    fingerExtension[i] = lm[TIP[i]].y < lm[MCP[i]].y;
+    if (fingerExtension[i]) count++;
+  }
+
+  if (count === 0) return 'POING';
+  if (count === 1 && fingerExtension[0]) return 'INDEX';
+  if (count === 2 && fingerExtension[0] && fingerExtension[1]) return 'DEUX';
+  return 'MAIN';
+}
+
+function stableGesture(lm) {
+  gh[ghIdx++ % CONFIG.GESTURE_HISTORY_LENGTH] = rawGesture(lm);
+  
+  let maxCount = 0, maxGesture = 'NONE';
+  const counts = {};
+  
+  for (let i = 0; i < gh.length; i++) {
+    const g = gh[i];
+    counts[g] = (counts[g] || 0) + 1;
+    if (counts[g] > maxCount) {
+      maxCount = counts[g];
+      maxGesture = g;
+    }
+  }
+  return maxGesture;
+}
+
+let lastGesture = 'NONE';
+let pinchRefX = null;
+let prevPalmXY = null;
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  LANDMARK CANVAS
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+const video = document.getElementById('video');
+const lmCanvas = document.getElementById('lm-canvas');
+const lmCtx = lmCanvas.getContext('2d', { willReadFrequently: true });
+
+const CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],
+  [9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17],
+];
+
+function drawHand(lm) {
+  const w = lmCanvas.width, h = lmCanvas.height;
+  lmCtx.clearRect(0, 0, w, h);
+
+  lmCtx.strokeStyle = 'rgba(0,245,196,0.55)';
+  lmCtx.lineWidth = 1.5;
+  for (let i = 0; i < CONNECTIONS.length; i++) {
+    const [a, b] = CONNECTIONS[i];
+    lmCtx.beginPath();
+    lmCtx.moveTo(lm[a].x * w, lm[a].y * h);
+    lmCtx.lineTo(lm[b].x * w, lm[b].y * h);
+    lmCtx.stroke();
+  }
+  
+  lmCtx.fillStyle = '#f53c8a';
+  for (let i = 0; i < lm.length; i++) {
+    lmCtx.beginPath();
+    lmCtx.arc(lm[i].x * w, lm[i].y * h, 2.5, 0, Math.PI * 2);
+    lmCtx.fill();
+  }
+
+  lmCtx.strokeStyle = '#ffaa00';
+  lmCtx.lineWidth = 2;
+  for (let i = 0; i < 2; i++) {
+    const idx = i === 0 ? 4 : 8;
+    lmCtx.beginPath();
+    lmCtx.arc(lm[idx].x * w, lm[idx].y * h, 5, 0, Math.PI * 2);
+    lmCtx.stroke();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  MEDIAPIPE RESULTS
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+const gestureBadge = document.getElementById('gesture-badge');
+const zoomIndicator = document.getElementById('zoom-indicator');
+const LABELS = {
+  INDEX: '☝ DÉPLACER',
+  DEUX: '✌ ROTATION',
+  PINCE: '🤏 ZOOM ←→',
+  POING: '✊ RESET',
+  MAIN: '🖐 LIBRE',
+  NONE: '— EN ATTENTE —',
+};
+
+let zoomTimout = null;
+let lastDetectionTime = Date.now();
+
+function showZoomArrow(dir) {
+  zoomIndicator.textContent = dir === 'in' ? '→' : '←';
+  zoomIndicator.classList.add('show');
+  clearTimeout(zoomTimout);
+  zoomTimout = setTimeout(() => zoomIndicator.classList.remove('show'), 300);
+}
+
+function resetUIData() {
+  S.handVisible = false;
+  lmCtx.clearRect(0, 0, lmCanvas.width, lmCanvas.height);
+  gestureBadge.textContent = LABELS.NONE;
+  gestureBadge.classList.remove('active');
+  zoomIndicator.classList.remove('show');
+  prevPalmXY = null;
+  pinchRefX = null;
+  gh.fill('NONE');
+  document.getElementById('d-gesture').textContent = '—';
+  document.getElementById('d-x').textContent = '—';
+  document.getElementById('d-y').textContent = '—';
+}
+
+function onResults(results) {
+  const mpStart = perf.startMpTimer();
+
+  if (!results.multiHandLandmarks?.length) {
+    if (Date.now() - lastDetectionTime > CONFIG.DETECTION_TIMEOUT) {
+      resetUIData();
+      S.gesture = 'NONE';
+      lastDetectionTime = Date.now();
+    }
+    perf.endMpTimer(mpStart);
+    return;
+  }
+
+  perf.detectionFrames++;
+  
+  const lm = results.multiHandLandmarks[0];
+  const confidence = results.multiHandedness[0].score;
+  
+  if (confidence < CONFIG.MIN_CONFIDENCE_THRESHOLD) {
+    perf.endMpTimer(mpStart);
+    return;
+  }
+
+  lastDetectionTime = Date.now();
+  
+  const gesture = stableGesture(lm);
+  const palm = palmCenter(lm);
+  session.logGesture(gesture);
+
+  S.handVisible = true;
+  S.gesture = gesture;
+
+  const worldX = -(palm.x - 0.5) * 10;
+  const worldY = -(palm.y - 0.5) * 7;
+
+  if (gesture !== lastGesture) {
+    pinchRefX = null;
+    prevPalmXY = null;
+    lastGesture = gesture;
+  }
+
+  if (gesture === 'INDEX') {
+    S.targetX = worldX;
+    S.targetY = worldY;
+  }
+
+  if (gesture === 'DEUX') {
+    if (prevPalmXY) {
+      const dx = palm.x - prevPalmXY.x;
+      const dy = palm.y - prevPalmXY.y;
+      if (Math.abs(dx) > CONFIG.DEADZONE_THRESHOLD) S.rotY += dx * CONFIG.ROTATION_SENSITIVITY;
+      if (Math.abs(dy) > CONFIG.DEADZONE_THRESHOLD) S.rotX += dy * CONFIG.ROTATION_SENSITIVITY;
+    }
+    prevPalmXY = { x: palm.x, y: palm.y };
+  }
+
+  if (gesture === 'PINCE') {
+    if (pinchRefX !== null) {
+      const dx = palm.x - pinchRefX;
+      if (Math.abs(dx) > CONFIG.DEADZONE_THRESHOLD) {
+        const delta = -dx * CONFIG.ZOOM_SENSITIVITY;
+        const prev = S.targetSc;
+        S.targetSc = Math.max(CONFIG.SCALE_MIN, Math.min(CONFIG.SCALE_MAX, S.targetSc + delta));
+        if (S.targetSc !== prev) {
+          showZoomArrow(delta > 0 ? 'in' : 'out');
         }
+      }
+    }
+    pinchRefX = palm.x;
+  }
+
+  if (gesture === 'POING') {
+    S.targetX = 0;
+    S.targetY = 0;
+    S.targetSc = 1;
+    S.rotX = 0;
+    S.rotY = 0;
+  }
+
+  drawHand(lm);
+  gestureBadge.textContent = LABELS[gesture] || gesture;
+  gestureBadge.classList.add('active');
+
+  document.getElementById('d-x').textContent = worldX.toFixed(2);
+  document.getElementById('d-y').textContent = worldY.toFixed(2);
+  document.getElementById('d-pinch').textContent = normPinch(lm).toFixed(3);
+  document.getElementById('d-scale').textContent = S.targetSc.toFixed(2) + 'x';
+  document.getElementById('d-gesture').textContent = gesture;
+
+  const latency = perf.endMpTimer(mpStart);
+  document.getElementById('d-latency').textContent = latency.toFixed(1) + 'ms';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  THREE.JS RENDER
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+const clock = new THREE.Clock();
+
+function resize() {
+  const w = wrap.clientWidth, h = wrap.clientHeight;
+  renderer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+}
+
+const resizeHandler = resize.bind(null);
+window.addEventListener('resize', resizeHandler);
+resize();
+
+function animate() {
+  requestAnimationFrame(animate);
+  perf.updateFrame();
+  
+  const t = clock.getElapsedTime();
+
+  const lerpPos = CONFIG.HIGH_PERF_MODE ? 0.25 : CONFIG.LERP_POSITION;
+  const lerpSc = CONFIG.HIGH_PERF_MODE ? 0.25 : CONFIG.LERP_SCALE;
+  const lerpRot = CONFIG.HIGH_PERF_MODE ? 0.15 : CONFIG.LERP_ROTATION;
+
+  S.curX += (S.targetX - S.curX) * lerpPos;
+  S.curY += (S.targetY - S.curY) * lerpPos;
+  S.curSc += (S.targetSc - S.curSc) * lerpSc;
+
+  if (mesh) {
+    mesh.position.x = S.curX;
+    mesh.position.y = S.curY;
+    mesh.scale.setScalar(Math.max(CONFIG.SCALE_MIN, S.curSc));
+
+    if (S.gesture === 'DEUX' && S.handVisible) {
+      mesh.rotation.x += (S.rotX - mesh.rotation.x) * lerpRot;
+      mesh.rotation.y += (S.rotY - mesh.rotation.y) * lerpRot;
+    } else {
+      mesh.rotation.x += 0.003;
+      mesh.rotation.y += 0.006;
+      S.rotX = mesh.rotation.x;
+      S.rotY = mesh.rotation.y;
     }
 
-    // --- CALCULS ---
-    function getDist(p1, p2) {
-        return Math.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2);
+    mesh.material.emissiveIntensity = 0.1 + (Math.sin(t * 2.2) * 0.5 + 0.5) * 0.08;
+  }
+
+  light1.position.x = Math.sin(t * 0.45) * 7;
+  light1.position.z = Math.cos(t * 0.30) * 7;
+  light2.position.x = Math.cos(t * 0.38) * 6;
+  light2.position.z = Math.sin(t * 0.55) * 6;
+
+  renderer.render(scene, camera);
+}
+animate();
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  MEDIAPIPE
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+const hands = new Hands({
+  locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${f}`,
+});
+
+hands.setOptions(CONFIG.MEDIAPIPE_CONFIG);
+hands.onResults(onResults);
+
+const overlay = document.getElementById('loading-overlay');
+const loadMsg = document.getElementById('load-msg');
+const startBtn = document.getElementById('start-btn');
+const statusEl = document.getElementById('status');
+const statusText = document.getElementById('status-text');
+const cameraIndicator = document.getElementById('camera-indicator');
+const debugStats = document.getElementById('debug-stats');
+
+let mpBusy = false;
+
+function startProcessingLoop() {
+  async function loop() {
+    if (!mpBusy && video.readyState >= 2) {
+      mpBusy = true;
+      try { 
+        await hands.send({ image: video }); 
+      } catch (err) {
+        console.error('MediaPipe error:', err);
+      } finally {
+        mpBusy = false;
+      }
     }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
 
-    function onResults(results) {
-        // Nettoyage et dessin de la vidéo en fond
-        canvasCtx.save();
-        canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
-        
-        // Effet miroir pour la vidéo
-        canvasCtx.translate(canvasElement.width, 0);
-        canvasCtx.scale(-1, 1);
-        canvasCtx.globalAlpha = 0.25; // Sombre pour faire ressortir le néon
-        canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
-        canvasCtx.restore();
+const ERROR_MESSAGES = {
+  'NotAllowedError': '❌ Caméra refusée.',
+  'NotFoundError': '❌ Pas de caméra.',
+  'NotReadableError': '❌ Caméra déjà utilisée.',
+  'SecurityError': '❌ HTTPS requis.',
+  'default': '❌ Erreur caméra.',
+};
 
-        let fingerInteractions = [];
-
-        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-            statusText.innerText = "Système : Mains détectées";
-            
-            results.multiHandLandmarks.forEach(landmarks => {
-                // Coordonnées MediaPipe (0 à 1) -> Pixels (Inversé pour le miroir)
-                const thumb = { x: (1 - landmarks[4].x) * canvasElement.width, y: landmarks[4].y * canvasElement.height };
-                const index = { x: (1 - landmarks[8].x) * canvasElement.width, y: landmarks[8].y * canvasElement.height };
-                
-                fingerInteractions.push(thumb, index);
-
-                // Geste de Zoom Dynamique
-                const d = getDist(thumb, index);
-                targetScale = Math.max(0.5, Math.min(2.5, d / 150));
-                
-                // Dessin du tracking des doigts (Optionnel, style HUD)
-                canvasCtx.strokeStyle = '#00f2ff';
-                canvasCtx.lineWidth = 2;
-                canvasCtx.beginPath();
-                canvasCtx.arc(index.x, index.y, 8, 0, 2*Math.PI);
-                canvasCtx.stroke();
-            });
-        } else {
-            statusText.innerText = "Système : En attente de détection...";
-            targetScale = 1;
-        }
-
-        // Lissage du zoom
-        currentScale += (targetScale - currentScale) * 0.1;
-        zoomText.innerText = `Scale: ${currentScale.toFixed(2)}x`;
-
-        drawNetwork(fingerInteractions);
-    }
-
-    // --- DESSIN DU RÉSEAU ---
-    function drawNetwork(fingers) {
-        canvasCtx.save();
-        
-        // Application du zoom centré
-        canvasCtx.translate(canvasElement.width/2, canvasElement.height/2);
-        canvasCtx.scale(currentScale, currentScale);
-        canvasCtx.translate(-canvasElement.width/2, -canvasElement.height/2);
-
-        // Style néon
-        canvasCtx.shadowBlur = 10;
-        canvasCtx.shadowColor = '#00f2ff';
-        canvasCtx.globalCompositeOperation = 'lighter';
-
-        nodes.forEach((node, i) => {
-            // Animation
-            node.x += node.vx;
-            node.y += node.vy;
-
-            // Rebond
-            if (node.x < 0 || node.x > canvasElement.width) node.vx *= -1;
-            if (node.y < 0 || node.y > canvasElement.height) node.vy *= -1;
-
-            // Attraction par les mains
-            fingers.forEach(f => {
-                const d = getDist(node, f);
-                if (d < 250) {
-                    node.x += (f.x - node.x) * 0.03;
-                    node.y += (f.y - node.y) * 0.03;
-                }
-            });
-
-            // Dessin Neurone
-            canvasCtx.beginPath();
-            canvasCtx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
-            canvasCtx.fillStyle = '#fff';
-            canvasCtx.fill();
-
-            // Dessin Connexions
-            for (let j = i + 1; j < nodes.length; j++) {
-                const node2 = nodes[j];
-                const d = getDist(node, node2);
-                if (d < CONNECT_DIST) {
-                    canvasCtx.beginPath();
-                    canvasCtx.moveTo(node.x, node.y);
-                    canvasCtx.lineTo(node2.x, node2.y);
-                    const opacity = 1 - (d / CONNECT_DIST);
-                    canvasCtx.strokeStyle = `rgba(0, 242, 255, ${opacity * 0.5})`;
-                    canvasCtx.lineWidth = 0.8;
-                    canvasCtx.stroke();
-                }
-            }
-        });
-
-        canvasCtx.restore();
-    }
-
-    // --- SETUP CAMERA & MEDIAPIPE ---
-    const hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-    hands.setOptions({
-        maxNumHands: 2,
-        modelComplexity: 1,
-        minDetectionConfidence: 0.6,
-        minTrackingConfidence: 0.5
+async function startCamera() {
+  startBtn.style.display = 'none';
+  loadMsg.textContent = 'ACCÈS CAMÉRA...';
+  statusEl.className = 'loading';
+  statusText.textContent = '⟳ ACCÈS';
+  
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { 
+        width: { ideal: 1280 },
+        height: { ideal: 960 }, 
+        facingMode: 'user' 
+      },
     });
-    hands.onResults(onResults);s
+    
+    video.srcObject = stream;
 
-    const camera = new Camera(videoElement, {
-        onFrame: async () => {
-            await hands.send({image: videoElement});
-        },
-        width: 1280,
-        height: 720
-    });
+    const videoTrack = stream.getVideoTracks()[0];
+    videoTrack.onended = () => {
+      statusEl.className = 'error';
+      statusText.textContent = '✕ DÉCONNECTÉE';
+      cameraIndicator.classList.add('inactive');
+      overlay.style.display = 'flex';
+      loadMsg.textContent = 'Caméra débranchée.';
+      startBtn.style.display = 'block';
+      startBtn.textContent = '↺ RÉESSAYER';
+    };
 
-    window.addEventListener('resize', initNodes);
-    initNodes();
-    camera.start();
+    video.addEventListener('loadedmetadata', () => {
+      lmCanvas.width = video.videoWidth;
+      lmCanvas.height = video.videoHeight;
+      startProcessingLoop();
+      overlay.style.display = 'none';
+      statusEl.className = 'ready';
+      statusText.textContent = '● ACTIF';
+      cameraIndicator.classList.remove('inactive');
+    }, { once: true });
+  } catch (err) {
+    const errorMsg = ERROR_MESSAGES[err.name] || ERROR_MESSAGES.default;
+    loadMsg.textContent = errorMsg;
+    statusEl.className = 'error';
+    statusText.textContent = '✕ ERREUR';
+    cameraIndicator.classList.add('inactive');
+    startBtn.textContent = '↺ RÉESSAYER';
+    startBtn.style.display = 'block';
+  }
+}
+
+hands.initialize()
+  .then(() => { 
+    loadMsg.textContent = 'MODÈLE CHARGÉ'; 
+    startBtn.style.display = 'block'; 
+    startBtn.textContent = '▶ DÉMARRER CAMÉRA'; 
+  })
+  .catch((err) => { 
+    loadMsg.textContent = 'ERREUR CHARGEMENT'; 
+    statusEl.className = 'error';
+    startBtn.style.display = 'block'; 
+    startBtn.textContent = '↺ RÉESSAYER'; 
+  });
+
+startBtn.addEventListener('click', startCamera);
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  THEME TOGGLE - COMPLET & CORRECT
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+const themeToggle = document.getElementById('theme-toggle');
+const savedTheme = localStorage.getItem('app-theme') || 'dark';
+
+function applyTheme(theme) {
+  if (theme === 'light') {
+    document.body.classList.add('light-mode');
+    themeToggle.textContent = '☀️ LIGHT';
+  } else {
+    document.body.classList.remove('light-mode');
+    themeToggle.textContent = '🌙 DARK';
+  }
+  localStorage.setItem('app-theme', theme);
+  session.settings.theme = theme;
+}
+
+applyTheme(savedTheme);
+
+themeToggle.addEventListener('click', () => {
+  const isLight = document.body.classList.contains('light-mode');
+  applyTheme(isLight ? 'dark' : 'light');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  KEYBOARD SHORTCUTS
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+window.addEventListener('keydown', (e) => {
+  if (!e.ctrlKey) return;
+
+  if (e.key === 'd') {
+    e.preventDefault();
+    CONFIG.DEBUG_MODE = !CONFIG.DEBUG_MODE;
+    debugStats.classList.toggle('show');
+  }
+
+  if (e.key === 'h') {
+    e.preventDefault();
+    CONFIG.HIGH_PERF_MODE = !CONFIG.HIGH_PERF_MODE;
+    document.getElementById('mode-info').textContent = CONFIG.HIGH_PERF_MODE ? '⚡ Haute Perf' : 'Normal';
+  }
+
+  if (e.key === 'e') {
+    e.preventDefault();
+    session.saveToDisk();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  DEBUG & STATS UPDATE
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+setInterval(() => {
+  const stats = perf.getStats();
+  const duration = session.getSessionDuration();
+  const minutes = Math.floor(duration / 60);
+  const seconds = duration % 60;
+
+  if (CONFIG.DEBUG_MODE) {
+    debugStats.textContent = `FPS: ${stats.fps}
+MP Latency: ${stats.mpLatency}
+Detection: ${stats.detectionRate}
+Gesture: ${S.gesture}
+Mode: ${CONFIG.HIGH_PERF_MODE ? 'PERF' : 'NORMAL'}
+Peak FPS: ${session.peakFps}`;
+  }
+
+  document.getElementById('d-fps').textContent = stats.fps;
+  document.getElementById('session-time').textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  document.getElementById('detection-count').textContent = session.totalDetections;
+}, 500);
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  UI HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+document.querySelectorAll('.shape-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeShape = btn.dataset.shape;
+    localStorage.setItem('app-shape', activeShape);
+    session.settings.lastShape = activeShape;
+    buildMesh(activeShape, activeColor);
+  });
+});
+
+document.querySelectorAll('.swatch').forEach(sw => {
+  sw.addEventListener('click', () => {
+    document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+    sw.classList.add('active');
+    activeColor = sw.dataset.color;
+    localStorage.setItem('app-color', activeColor);
+    session.settings.lastColor = activeColor;
+    if (mesh) {
+      const col = new THREE.Color(activeColor);
+      mesh.material.color.copy(col);
+      mesh.material.emissive.copy(col.clone().multiplyScalar(0.12));
+      light1.color.set(activeColor);
+    }
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════════
+//  CLEANUP
+// ═══════════════════════════════════════════════════════════════════════════════════
+
+window.addEventListener('beforeunload', () => {
+  if (video.srcObject) {
+    video.srcObject.getTracks().forEach(track => track.stop());
+  }
+  if (mesh) {
+    mesh.geometry.dispose();
+    mesh.material.dispose();
+  }
+  clearTimeout(zoomTimout);
+  window.removeEventListener('resize', resizeHandler);
+});
 </script>
-
 </body>
 </html>
