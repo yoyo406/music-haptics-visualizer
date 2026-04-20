@@ -98,4 +98,3 @@ DEBUGMODE: false          // Stats techniques
 ```
 
 **Ton contrôleur 3D par gestes est prêt pour GitHub Stars ! 🌟✨**
-```
