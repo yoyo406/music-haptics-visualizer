@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f172a">
-<title>gpt.js Pro</title>
+<title>gpt.js Pro · GPU</title>
 <style>
 
 :root {
@@ -452,10 +452,10 @@ canvas {
     <div class="topbar">
       <div class="brand">
         <div>
-          <h1>gpt.js Pro</h1>
-          <p>Transformer decoder, worker-driven training, responsive UI, autosave, import/export, and a safety system so the browser doesn't combust out of optimism.</p>
+          <h1>gpt.js Pro · GPU</h1>
+          <p>Transformer décodeur batché · TensorFlow.js · WebGPU forcé (fallback WebGL) · entraînement entièrement sur GPU, jamais sur CPU. Web Worker, autosave IndexedDB, import/export checkpoints.</p>
         </div>
-        <div id="statusPill" class="status-pill" data-kind="safe">Ready</div>
+        <div id="statusPill" class="status-pill" data-kind="safe">Init…</div>
       </div>
     </div>
 
@@ -491,10 +491,13 @@ A train crosses the bridge at dusk.</textarea>
             <div class="field"><label for="nEmbd">n_embd</label><input id="nEmbd" class="input" type="number" min="8" max="1024" step="8" value="128"></div>
             <div class="field"><label for="nHeads">n_heads</label><input id="nHeads" class="input" type="number" min="1" max="32" value="8"></div>
             <div class="field"><label for="nLayers">n_layers</label><input id="nLayers" class="input" type="number" min="1" max="16" value="4"></div>
-            <div class="field"><label for="epochs">epochs</label><input id="epochs" class="input" type="number" min="1" max="100000" step="100" value="3000"></div>
-            <div class="field"><label for="batch">batch</label><input id="batch" class="input" type="number" min="1" max="256" value="8"></div>
-            <div class="field"><label for="lr">lr</label><input id="lr" class="input" type="number" min="0.000001" step="0.0001" value="0.0005"></div>
-            <div class="field"><label for="lrEnd">lr end</label><input id="lrEnd" class="input" type="number" min="0.000001" step="0.00001" value="0.0001"></div>
+            <div class="field"><label for="epochs">steps</label><input id="epochs" class="input" type="number" min="1" max="100000" step="100" value="3000"></div>
+            <div class="field"><label for="batch">batch</label><input id="batch" class="input" type="number" min="1" max="256" value="16"></div>
+            <div class="field"><label for="lr">lr</label><input id="lr" class="input" type="number" min="0.000001" step="0.0001" value="0.0006"></div>
+            <div class="field"><label for="lrEnd">lr end</label><input id="lrEnd" class="input" type="number" min="0.000001" step="0.00001" value="0.00006"></div>
+            <div class="field"><label for="warmup">warmup</label><input id="warmup" class="input" type="number" min="0" max="10000" value="100"></div>
+            <div class="field"><label for="weightDecay">w decay</label><input id="weightDecay" class="input" type="number" min="0" max="1" step="0.01" value="0.1"></div>
+            <div class="field"><label for="gradClip">grad clip</label><input id="gradClip" class="input" type="number" min="0" max="100" step="0.1" value="1.0"></div>
             <div class="field"><label for="dropout">dropout</label><input id="dropout" class="input" type="number" min="0" max="0.5" step="0.05" value="0.1"></div>
             <div class="field"><label for="tokenizer">tokenizer</label>
               <select id="tokenizer" class="select">
@@ -506,14 +509,14 @@ A train crosses the bridge at dusk.</textarea>
             <div class="field"><label for="topP">top-p</label><input id="topP" class="input" type="number" min="0.1" max="1" step="0.01" value="0.95"></div>
             <div class="field"><label for="patience">patience</label><input id="patience" class="input" type="number" min="1" max="10000" value="400"></div>
             <div class="field"><label for="minDelta">min delta</label><input id="minDelta" class="input" type="number" min="0" max="1" step="0.0005" value="0.001"></div>
-            <div class="field"><label for="autosaveEvery">save every</label><input id="autosaveEvery" class="input" type="number" min="1" max="1000" step="1" value="50"></div>
+            <div class="field"><label for="autosaveEvery">save every</label><input id="autosaveEvery" class="input" type="number" min="1" max="10000" step="1" value="100"></div>
             <div class="field">
               <label>autosave</label>
               <label class="check"><input id="autosave" type="checkbox" checked><span>IndexedDB</span></label>
             </div>
           </div>
           <div class="btns" style="margin-top: 14px;">
-            <button id="btnTrain" class="btn primary">Train</button>
+            <button id="btnTrain" class="btn primary" disabled>Train on GPU</button>
             <button id="btnStop" class="btn" disabled>Stop</button>
             <button id="btnReset" class="btn">Reset</button>
           </div>
@@ -523,7 +526,7 @@ A train crosses the bridge at dusk.</textarea>
             <button id="btnBalancedPreset" class="btn">Balanced preset</button>
             <button id="btnMaxPreset" class="btn">Max preset</button>
           </div>
-          <div class="note">The heavy lifting runs in a Web Worker. The UI stays alive, which is apparently considered a luxury feature now.</div>
+          <div class="note">L'entraînement se fait dans un Web Worker, sur le GPU. Si aucun backend GPU n'est disponible (ni WebGPU ni WebGL), le worker refuse de démarrer.</div>
         </section>
 
         <section class="card">
@@ -533,12 +536,12 @@ A train crosses the bridge at dusk.</textarea>
           <div class="status-grid">
             <div class="metric"><div class="k">vocab</div><div id="sVocab" class="v">--</div></div>
             <div class="metric"><div class="k">params</div><div id="sParams" class="v">--</div></div>
-            <div class="metric"><div class="k">epoch</div><div id="sEpoch" class="v">0</div></div>
+            <div class="metric"><div class="k">step</div><div id="sEpoch" class="v">0</div></div>
             <div class="metric"><div class="k">loss</div><div id="sLoss" class="v">--</div></div>
             <div class="metric"><div class="k">best</div><div id="sBest" class="v">--</div></div>
             <div class="metric"><div class="k">speed</div><div id="sSpeed" class="v small">--</div></div>
             <div class="metric"><div class="k">elapsed</div><div id="sTime" class="v small">--</div></div>
-            <div class="metric"><div class="k">memory</div><div id="sMem" class="v small">--</div></div>
+            <div class="metric"><div class="k">gpu mem</div><div id="sMem" class="v small">--</div></div>
           </div>
         </section>
 
@@ -575,14 +578,17 @@ A train crosses the bridge at dusk.</textarea>
           </div>
           <input id="modelFile" type="file" accept=".json,application/json" hidden>
           <div class="footer-note">
-            Checkpoints are portable JSON files. GGUF is not supported here because this model is a custom browser transformer, not a secretly disguised llama.
+            Checkpoints portables (JSON). Le format a changé pour stocker les poids du modèle TF.js (schema 3) — les anciens checkpoints v2 ne sont plus compatibles.
           </div>
         </section>
       </div>
 
       <aside class="grid">
         <section id="sectionSafety" class="card">
-          <h2>Smart Safety</h2>
+          <h2>GPU &amp; Safety</h2>
+          <div class="metric" style="margin-bottom:12px;">
+            <div class="k">backend</div><div id="sBackend" class="v small">--</div>
+          </div>
           <div class="metric" style="margin-bottom:12px;">
             <div class="k">device</div><div id="sDevice" class="v small">--</div>
           </div>
@@ -593,7 +599,7 @@ A train crosses the bridge at dusk.</textarea>
           <div class="metric" style="margin-top:12px;">
             <div class="k">tokenizer</div><div id="sTokenCount" class="v small">char</div>
           </div>
-          <div class="note">This panel estimates how likely your current settings are to annoy the browser into a freeze.</div>
+          <div class="note">L'entraînement est forcé sur GPU. WebGPU est privilégié, WebGL est utilisé en fallback. Le CPU est explicitement refusé.</div>
         </section>
 
         <section class="card">
@@ -607,1205 +613,1577 @@ A train crosses the bridge at dusk.</textarea>
   </main>
 
   <script>
-  const WORKER_SOURCE = "// =============================================================================\n// MATH UTILS\n// =============================================================================\nfunction addVec(a, b) {\n  var r = new Float32Array(a.length);\n  for (var i = 0; i < a.length; i++) r[i] = a[i] + b[i];\n  return r;\n}\n\nfunction scaleVec(a, s) {\n  var r = new Float32Array(a.length);\n  for (var i = 0; i < a.length; i++) r[i] = a[i] * s;\n  return r;\n}\n\n// Softmax with temperature\nfunction softmax(x, T) {\n  T = T || 1.0;\n  var mx = x[0];\n  for (var i = 1; i < x.length; i++) if (x[i] > mx) mx = x[i];\n  var s = 0;\n  var e = new Float32Array(x.length);\n  for (var i = 0; i < x.length; i++) { e[i] = Math.exp(x[i] / T - mx / T); s += e[i]; }\n  for (var i = 0; i < x.length; i++) e[i] /= s;\n  return e;\n}\n\n// LayerNorm forward \u2014 retourne {out, mu, sigma} pour backprop\nfunction layerNormFwd(x, g, b) {\n  var n = x.length, mu = 0, vr = 0;\n  for (var i = 0; i < n; i++) mu += x[i];\n  mu /= n;\n  for (var i = 0; i < n; i++) vr += (x[i] - mu) * (x[i] - mu);\n  vr = vr / n + 1e-5;\n  var sd = Math.sqrt(vr);\n  var xhat = new Float32Array(n);\n  var out = new Float32Array(n);\n  for (var i = 0; i < n; i++) { xhat[i] = (x[i] - mu) / sd; out[i] = g[i] * xhat[i] + b[i]; }\n  return { out: out, xhat: xhat, sd: sd };\n}\n\n// LayerNorm backward \u2014 retourne dX, dG, dB\nfunction layerNormBwd(dOut, xhat, sd, g) {\n  var n = dOut.length;\n  var dxhat = new Float32Array(n);\n  var dg = new Float32Array(n);\n  var db = new Float32Array(n);\n  for (var i = 0; i < n; i++) { dxhat[i] = dOut[i] * g[i]; dg[i] = dOut[i] * xhat[i]; db[i] = dOut[i]; }\n  // dx from xhat: dx = (1/sd)*(dxhat - mean(dxhat) - xhat*mean(dxhat*xhat))\n  var mdxhat = 0, mdxhatx = 0;\n  for (var i = 0; i < n; i++) { mdxhat += dxhat[i]; mdxhatx += dxhat[i] * xhat[i]; }\n  mdxhat /= n; mdxhatx /= n;\n  var dx = new Float32Array(n);\n  for (var i = 0; i < n; i++) dx[i] = (dxhat[i] - mdxhat - xhat[i] * mdxhatx) / sd;\n  return { dx: dx, dg: dg, db: db };\n}\n\n// GELU forward\nfunction geluFwd(x) {\n  var r = new Float32Array(x.length);\n  for (var i = 0; i < x.length; i++) {\n    var v = x[i];\n    r[i] = 0.5 * v * (1 + Math.tanh(0.7978845608 * (v + 0.044715 * v * v * v)));\n  }\n  return r;\n}\n\n// GELU backward\nfunction geluBwd(dOut, x) {\n  var r = new Float32Array(x.length);\n  for (var i = 0; i < x.length; i++) {\n    var v = x[i];\n    var t = Math.tanh(0.7978845608 * (v + 0.044715 * v * v * v));\n    var dt = 0.7978845608 * (1 + 3 * 0.044715 * v * v);\n    r[i] = dOut[i] * (0.5 * (1 + t) + 0.5 * v * (1 - t * t) * dt);\n  }\n  return r;\n}\n\nfunction randMat(rows, cols, scale) {\n  var m = [];\n  for (var i = 0; i < rows; i++) {\n    var row = new Float32Array(cols);\n    for (var j = 0; j < cols; j++) row[j] = (Math.random() * 2 - 1) * scale;\n    m.push(row);\n  }\n  return m;\n}\n\nfunction zeroLike(mat) {\n  var r = [];\n  for (var i = 0; i < mat.length; i++) r.push(new Float32Array(mat[i].length));\n  return r;\n}\n\nfunction clipV(v, t) { return v > t ? t : v < -t ? -t : v; }\n\nfunction dropout(x, rate, training) {\n  if (!training || rate <= 0) return { out: x, mask: null };\n  var mask = new Float32Array(x.length);\n  var out  = new Float32Array(x.length);\n  var scale = 1.0 / (1.0 - rate);\n  for (var i = 0; i < x.length; i++) {\n    mask[i] = Math.random() > rate ? 1 : 0;\n    out[i]  = x[i] * mask[i] * scale;\n  }\n  return { out: out, mask: mask };\n}\n\nfunction dropoutBwd(dOut, mask, rate) {\n  if (!mask) return dOut;\n  var scale = 1.0 / (1.0 - rate);\n  var r = new Float32Array(dOut.length);\n  for (var i = 0; i < dOut.length; i++) r[i] = dOut[i] * mask[i] * scale;\n  return r;\n}\n\n// =============================================================================\n// ADAM OPTIMIZER\n// =============================================================================\nfunction Adam(lr, beta1, beta2, weightDecay) {\n  this.lr = lr || 0.001;\n  this.b1 = beta1 || 0.9;\n  this.b2 = beta2 || 0.999;\n  this.wd = weightDecay || 0.01;\n  this.t  = 0;\n  this.state = {}; // keyed by param id\n}\n\nAdam.prototype.step = function(params) {\n  // params: array of {id, data, grad}  where data/grad are Float32Array or array-of-Float32Array\n  this.t++;\n  var bc1 = 1 - Math.pow(this.b1, this.t);\n  var bc2 = 1 - Math.pow(this.b2, this.t);\n  for (var pi = 0; pi < params.length; pi++) {\n    var p = params[pi];\n    if (!this.state[p.id]) this.state[p.id] = { m: null, v: null };\n    var st = this.state[p.id];\n    var isMatrix = Array.isArray(p.data);\n    if (isMatrix) {\n      if (!st.m) { st.m = zeroLike(p.data); st.v = zeroLike(p.data); }\n      for (var i = 0; i < p.data.length; i++) {\n        for (var j = 0; j < p.data[i].length; j++) {\n          var g = clipV(p.grad[i][j], 5.0);\n          st.m[i][j] = this.b1 * st.m[i][j] + (1 - this.b1) * g;\n          st.v[i][j] = this.b2 * st.v[i][j] + (1 - this.b2) * g * g;\n          var mhat = st.m[i][j] / bc1;\n          var vhat = st.v[i][j] / bc2;\n          p.data[i][j] -= this.lr * (mhat / (Math.sqrt(vhat) + 1e-8) + this.wd * p.data[i][j]);\n        }\n      }\n    } else {\n      if (!st.m) { st.m = new Float32Array(p.data.length); st.v = new Float32Array(p.data.length); }\n      for (var i = 0; i < p.data.length; i++) {\n        var g = clipV(p.grad[i], 5.0);\n        st.m[i] = this.b1 * st.m[i] + (1 - this.b1) * g;\n        st.v[i] = this.b2 * st.v[i] + (1 - this.b2) * g * g;\n        var mhat = st.m[i] / bc1;\n        var vhat = st.v[i] / bc2;\n        p.data[i] -= this.lr * (mhat / (Math.sqrt(vhat) + 1e-8) + this.wd * p.data[i]);\n      }\n    }\n  }\n};\n\n// =============================================================================\n// MINI GPT \u2014 Transformer decoder with real backpropagation\n// =============================================================================\nfunction MiniGPT(vocabSize, blockSize, nEmbd, nHeads, nLayers, dropoutRate, lr) {\n  this.V  = vocabSize;\n  this.T  = blockSize;\n  this.C  = nEmbd;\n  this.H  = nHeads;\n  this.L  = nLayers;\n  this.dr = dropoutRate || 0.1;\n  this.hd = Math.floor(nEmbd / nHeads); // head dimension\n\n  var s = function(fanIn) { return Math.sqrt(2.0 / fanIn); };\n\n  // Token + positional embeddings\n  this.wte = randMat(vocabSize, nEmbd, s(nEmbd));\n  this.wpe = randMat(blockSize, nEmbd, s(nEmbd));\n\n  // Blocks\n  this.blocks = [];\n  for (var l = 0; l < nLayers; l++) {\n    this.blocks.push({\n      // Attention LN\n      ln1g: new Float32Array(nEmbd).fill(1.0),\n      ln1b: new Float32Array(nEmbd),\n      // Attention projections\n      Wq: randMat(nEmbd, nEmbd, s(nEmbd)),\n      Wk: randMat(nEmbd, nEmbd, s(nEmbd)),\n      Wv: randMat(nEmbd, nEmbd, s(nEmbd)),\n      Wo: randMat(nEmbd, nEmbd, s(nEmbd)),\n      bo: new Float32Array(nEmbd),\n      // FFN LN\n      ln2g: new Float32Array(nEmbd).fill(1.0),\n      ln2b: new Float32Array(nEmbd),\n      // FFN\n      Wf1: randMat(4 * nEmbd, nEmbd, s(nEmbd)),\n      bf1: new Float32Array(4 * nEmbd),\n      Wf2: randMat(nEmbd, 4 * nEmbd, s(4 * nEmbd)),\n      bf2: new Float32Array(nEmbd)\n    });\n  }\n\n  // Final LN + head\n  this.lnFg = new Float32Array(nEmbd).fill(1.0);\n  this.lnFb = new Float32Array(nEmbd);\n  this.head  = randMat(vocabSize, nEmbd, s(nEmbd));\n  this.bhead = new Float32Array(vocabSize);\n\n  // Adam optimizer\n  this.opt = new Adam(lr || 0.001, 0.9, 0.999, 0.01);\n}\n\n// ---- FORWARD ----\nMiniGPT.prototype.forward = function(tokens, isTraining) {\n  var C = this.C, H = this.H, hd = this.hd, T = tokens.length, V = this.V;\n  var dr = isTraining ? this.dr : 0;\n\n  // Cache for backprop\n  var cache = { tokens: tokens, blocks: [], lnF: null, xf: null };\n\n  // Input embeddings\n  var x = [];\n  for (var t = 0; t < T; t++) x.push(addVec(this.wte[tokens[t]], this.wpe[t]));\n\n  // Transformer blocks\n  for (var l = 0; l < this.L; l++) {\n    var b = this.blocks[l];\n    var bc = { ln1: [], Q: [], K: [], Vmat: [], attnW: [], attnOut: [], dropAttn: [], proj: [], dropProj: [], resid1: [], ln2: [], ff1pre: [], ff1: [], ff2pre: [], ff2: [], dropFF: [], resid2: [] };\n\n    // LN1\n    var xln1 = [];\n    for (var t = 0; t < T; t++) { var ln = layerNormFwd(x[t], b.ln1g, b.ln1b); xln1.push(ln.out); bc.ln1.push(ln); }\n\n    // Q K V\n    var Q = [], K = [], Vmat = [];\n    for (var t = 0; t < T; t++) {\n      var q = new Float32Array(C), k2 = new Float32Array(C), v2 = new Float32Array(C);\n      for (var i = 0; i < C; i++) for (var j = 0; j < C; j++) { q[i] += b.Wq[i][j] * xln1[t][j]; k2[i] += b.Wk[i][j] * xln1[t][j]; v2[i] += b.Wv[i][j] * xln1[t][j]; }\n      Q.push(q); K.push(k2); Vmat.push(v2);\n    }\n    bc.Q = Q; bc.K = K; bc.Vmat = Vmat; bc.xln1 = xln1;\n\n    // Multi-head causal attention\n    var attnWeights = []; // [T][T] per head -> averaged for cache\n    var attnOut = [];\n    for (var t = 0; t < T; t++) attnOut.push(new Float32Array(C));\n\n    var allHeadWeights = [];\n    for (var h = 0; h < H; h++) {\n      var hs = h * hd;\n      var headW = [];\n      for (var i = 0; i < T; i++) {\n        var scores = new Float32Array(T);\n        for (var j = 0; j <= i; j++) {\n          var dot = 0;\n          for (var d = 0; d < hd; d++) dot += Q[i][hs + d] * K[j][hs + d];\n          scores[j] = dot / Math.sqrt(hd);\n        }\n        for (var j = i + 1; j < T; j++) scores[j] = -1e9;\n        var w = softmax(scores);\n        headW.push(w);\n        for (var d = 0; d < hd; d++) {\n          var agg = 0;\n          for (var j = 0; j < T; j++) agg += w[j] * Vmat[j][hs + d];\n          attnOut[i][hs + d] = agg;\n        }\n      }\n      allHeadWeights.push(headW);\n    }\n    bc.attnW = allHeadWeights;\n    bc.attnOut = attnOut;\n\n    // Dropout on attn\n    var attnDropped = [];\n    var attnMasks = [];\n    for (var t = 0; t < T; t++) {\n      var d2 = dropout(attnOut[t], dr, isTraining);\n      attnDropped.push(d2.out); attnMasks.push(d2.mask);\n    }\n    bc.attnDropped = attnDropped; bc.attnMasks = attnMasks;\n\n    // Output projection + bias\n    var proj = [];\n    for (var t = 0; t < T; t++) {\n      var p = new Float32Array(C);\n      for (var i = 0; i < C; i++) { p[i] = b.bo[i]; for (var j = 0; j < C; j++) p[i] += b.Wo[i][j] * attnDropped[t][j]; }\n      proj.push(p);\n    }\n    bc.proj = proj;\n\n    // Residual 1\n    var resid1 = [];\n    for (var t = 0; t < T; t++) resid1.push(addVec(x[t], proj[t]));\n    bc.resid1 = resid1;\n\n    // LN2\n    var xln2 = [];\n    for (var t = 0; t < T; t++) { var ln2 = layerNormFwd(resid1[t], b.ln2g, b.ln2b); xln2.push(ln2.out); bc.ln2.push(ln2); }\n    bc.xln2 = xln2;\n\n    // FFN\n    var ff2out = [];\n    var ff1pre_all = [], ff1_all = [], ff2pre_all = [];\n    for (var t = 0; t < T; t++) {\n      var ff1pre = new Float32Array(4 * C);\n      for (var i = 0; i < 4 * C; i++) { ff1pre[i] = b.bf1[i]; for (var j = 0; j < C; j++) ff1pre[i] += b.Wf1[i][j] * xln2[t][j]; }\n      var ff1out = geluFwd(ff1pre);\n      var ff2pre = new Float32Array(C);\n      for (var i = 0; i < C; i++) { ff2pre[i] = b.bf2[i]; for (var j = 0; j < 4 * C; j++) ff2pre[i] += b.Wf2[i][j] * ff1out[j]; }\n      ff1pre_all.push(ff1pre); ff1_all.push(ff1out); ff2pre_all.push(ff2pre);\n      ff2out.push(ff2pre);\n    }\n    bc.ff1pre = ff1pre_all; bc.ff1 = ff1_all; bc.ff2pre = ff2pre_all;\n\n    // Dropout on FFN\n    var ffDropped = [], ffMasks = [];\n    for (var t = 0; t < T; t++) {\n      var dd = dropout(ff2out[t], dr, isTraining);\n      ffDropped.push(dd.out); ffMasks.push(dd.mask);\n    }\n    bc.ffDropped = ffDropped; bc.ffMasks = ffMasks;\n\n    // Residual 2\n    var resid2 = [];\n    for (var t = 0; t < T; t++) resid2.push(addVec(resid1[t], ffDropped[t]));\n    bc.resid2 = resid2;\n\n    x = resid2;\n    cache.blocks.push(bc);\n  }\n\n  // Final LN\n  var xfList = [], lnFList = [];\n  for (var t = 0; t < T; t++) {\n    var lnF = layerNormFwd(x[t], this.lnFg, this.lnFb);\n    xfList.push(lnF.out); lnFList.push(lnF);\n  }\n  cache.lnF = lnFList; cache.xf = xfList; cache.x = x;\n\n  // Logits\n  var logits = [];\n  for (var t = 0; t < T; t++) {\n    var logit = new Float32Array(V);\n    for (var i = 0; i < V; i++) { logit[i] = this.bhead[i]; for (var j = 0; j < C; j++) logit[i] += this.head[i][j] * xfList[t][j]; }\n    logits.push(logit);\n  }\n  cache.logits = logits;\n\n  return cache;\n};\n\n// ---- BACKWARD + UPDATE ----\nMiniGPT.prototype.backward = function(cache, targets) {\n  var T = targets.length, C = this.C, V = this.V, H = this.H, hd = this.hd;\n  var tokens = cache.tokens;\n\n  // Softmax + cross-entropy gradient\n  var probs = cache.logits.map(function(l) { return softmax(l); });\n  var loss = 0;\n  for (var t = 0; t < T; t++) loss -= Math.log(probs[t][targets[t]] + 1e-8);\n  loss /= T;\n\n  // dL/dlogits\n  var dLogits = [];\n  for (var t = 0; t < T; t++) {\n    var d = new Float32Array(probs[t].length);\n    for (var i = 0; i < d.length; i++) d[i] = probs[t][i] / T;\n    d[targets[t]] -= 1.0 / T;\n    dLogits.push(d);\n  }\n\n  // Accumulate gradients\n  var dHead  = zeroLike(this.head);\n  var dBhead = new Float32Array(V);\n  var dLnFg  = new Float32Array(C);\n  var dLnFb  = new Float32Array(C);\n  var dWte   = zeroLike(this.wte);\n  var dWpe   = zeroLike(this.wpe);\n\n  var dBlockParams = this.blocks.map(function(b) {\n    return {\n      dln1g: new Float32Array(C), dln1b: new Float32Array(C),\n      dln2g: new Float32Array(C), dln2b: new Float32Array(C),\n      dWq: zeroLike(b.Wq), dWk: zeroLike(b.Wk), dWv: zeroLike(b.Wv),\n      dWo: zeroLike(b.Wo), dbo: new Float32Array(C),\n      dWf1: zeroLike(b.Wf1), dbf1: new Float32Array(4 * C),\n      dWf2: zeroLike(b.Wf2), dbf2: new Float32Array(C)\n    };\n  });\n\n  // Grad through head + final LN\n  var dX = [];\n  for (var t = 0; t < T; t++) {\n    // dhead, dbhead\n    for (var i = 0; i < V; i++) {\n      dBhead[i] += dLogits[t][i];\n      for (var j = 0; j < C; j++) dHead[i][j] += dLogits[t][i] * cache.xf[t][j];\n    }\n    // dxf\n    var dxf = new Float32Array(C);\n    for (var j = 0; j < C; j++) for (var i = 0; i < V; i++) dxf[j] += this.head[i][j] * dLogits[t][i];\n    // through LN_final\n    var lnBwd = layerNormBwd(dxf, cache.lnF[t].xhat, cache.lnF[t].sd, this.lnFg);\n    for (var i = 0; i < C; i++) { dLnFg[i] += lnBwd.dg[i]; dLnFb[i] += lnBwd.db[i]; }\n    dX.push(lnBwd.dx);\n  }\n\n  // Grad through transformer blocks (reverse)\n  for (var l = this.L - 1; l >= 0; l--) {\n    var b  = this.blocks[l];\n    var bc = cache.blocks[l];\n    var dp = dBlockParams[l];\n\n    var dRes1All = [];\n    var dXln1All = [];\n    var dQAll = [];\n    var dKAll = [];\n    var dVAll = [];\n    for (var p = 0; p < T; p++) {\n      dRes1All.push(new Float32Array(C));\n      dXln1All.push(new Float32Array(C));\n      dQAll.push(new Float32Array(C));\n      dKAll.push(new Float32Array(C));\n      dVAll.push(new Float32Array(C));\n    }\n\n    for (var t = 0; t < T; t++) {\n      // Residual 2: dX[t] flows to both resid1 and ffn dropout\n      var dFF = dropoutBwd(dX[t], bc.ffMasks[t], this.dr);\n\n      // FFN backward\n      var dff2pre = dFF;\n      for (var i = 0; i < C; i++) {\n        dp.dbf2[i] += dff2pre[i];\n        for (var j = 0; j < 4 * C; j++) dp.dWf2[i][j] += dff2pre[i] * bc.ff1[t][j];\n      }\n      var dff1 = new Float32Array(4 * C);\n      for (var j = 0; j < 4 * C; j++) for (var i = 0; i < C; i++) dff1[j] += b.Wf2[i][j] * dff2pre[i];\n\n      var dff1pre = geluBwd(dff1, bc.ff1pre[t]);\n      for (var i = 0; i < 4 * C; i++) {\n        dp.dbf1[i] += dff1pre[i];\n        for (var j = 0; j < C; j++) dp.dWf1[i][j] += dff1pre[i] * bc.xln2[t][j];\n      }\n      var dxln2 = new Float32Array(C);\n      for (var j = 0; j < C; j++) for (var i = 0; i < 4 * C; i++) dxln2[j] += b.Wf1[i][j] * dff1pre[i];\n\n      // LN2\n      var dln2 = layerNormBwd(dxln2, bc.ln2[t].xhat, bc.ln2[t].sd, b.ln2g);\n      for (var i = 0; i < C; i++) { dp.dln2g[i] += dln2.dg[i]; dp.dln2b[i] += dln2.db[i]; }\n\n      // Gradient to resid1 for this token\n      var dResid1 = new Float32Array(C);\n      for (var i = 0; i < C; i++) {\n        dResid1[i] = dX[t][i] + dln2.dx[i];\n      }\n      dRes1All[t] = dResid1;\n\n      // Attention output projection\n      for (var i = 0; i < C; i++) {\n        dp.dbo[i] += dResid1[i];\n        for (var j = 0; j < C; j++) dp.dWo[i][j] += dResid1[i] * bc.attnDropped[t][j];\n      }\n      var dAttnDropped = new Float32Array(C);\n      for (var j = 0; j < C; j++) for (var i = 0; i < C; i++) dAttnDropped[j] += b.Wo[i][j] * dResid1[i];\n      var dAttnOut_t = dropoutBwd(dAttnDropped, bc.attnMasks[t], this.dr);\n\n      // Attention backward: accumulate dQ, dK, dV for all source positions\n      for (var h = 0; h < H; h++) {\n        var hs = h * hd;\n        var w = bc.attnW[h][t];\n\n        var scoreGrad = new Float32Array(t + 1);\n        var dotWG = 0;\n\n        for (var j = 0; j <= t; j++) {\n          var g = 0;\n          for (var d = 0; d < hd; d++) {\n            var od = dAttnOut_t[hs + d];\n            var vv = bc.Vmat[j][hs + d];\n            g += od * vv;\n            dVAll[j][hs + d] += w[j] * od;\n          }\n          scoreGrad[j] = g;\n          dotWG += w[j] * g;\n        }\n\n        var scale = 1.0 / Math.sqrt(hd);\n        for (var j = 0; j <= t; j++) {\n          var ds = w[j] * (scoreGrad[j] - dotWG) * scale;\n          for (var d = 0; d < hd; d++) {\n            dQAll[t][hs + d] += ds * bc.K[j][hs + d];\n            dKAll[j][hs + d] += ds * bc.Q[t][hs + d];\n          }\n        }\n      }\n    }\n\n    // Backprop through Q/K/V projections for the whole block\n    for (var p = 0; p < T; p++) {\n      for (var i = 0; i < C; i++) {\n        var dq = dQAll[p][i];\n        var dk = dKAll[p][i];\n        var dv = dVAll[p][i];\n\n        if (dq !== 0) {\n          for (var j = 0; j < C; j++) {\n            dp.dWq[i][j] += dq * bc.xln1[p][j];\n            dXln1All[p][j] += b.Wq[i][j] * dq;\n          }\n        }\n        if (dk !== 0) {\n          for (var j = 0; j < C; j++) {\n            dp.dWk[i][j] += dk * bc.xln1[p][j];\n            dXln1All[p][j] += b.Wk[i][j] * dk;\n          }\n        }\n        if (dv !== 0) {\n          for (var j = 0; j < C; j++) {\n            dp.dWv[i][j] += dv * bc.xln1[p][j];\n            dXln1All[p][j] += b.Wv[i][j] * dv;\n          }\n        }\n      }\n\n      // LN1 backward + residual skip\n      var dLn1 = layerNormBwd(dXln1All[p], bc.ln1[p].xhat, bc.ln1[p].sd, b.ln1g);\n      for (var i = 0; i < C; i++) { dp.dln1g[i] += dLn1.dg[i]; dp.dln1b[i] += dLn1.db[i]; }\n\n      dX[p] = new Float32Array(C);\n      for (var i = 0; i < C; i++) {\n        dX[p][i] = dRes1All[p][i] + dLn1.dx[i];\n      }\n\n      // Embedding gradients\n      var tok = tokens[p];\n      for (var i = 0; i < C; i++) {\n        dWte[tok][i] += dX[p][i];\n        dWpe[p][i]   += dX[p][i];\n      }\n    }\n  }\n\n  // Collect all params + grads for Adam\n  var params = [\n    { id: 'wte',   data: this.wte,   grad: dWte  },\n    { id: 'wpe',   data: this.wpe,   grad: dWpe  },\n    { id: 'lnFg',  data: this.lnFg,  grad: dLnFg },\n    { id: 'lnFb',  data: this.lnFb,  grad: dLnFb },\n    { id: 'head',  data: this.head,  grad: dHead },\n    { id: 'bhead', data: this.bhead, grad: dBhead }\n  ];\n  for (var l = 0; l < this.L; l++) {\n    var b = this.blocks[l], dp = dBlockParams[l];\n    var pfx = 'b' + l + '_';\n    params.push(\n      { id: pfx+'Wq',   data: b.Wq,   grad: dp.dWq   },\n      { id: pfx+'Wk',   data: b.Wk,   grad: dp.dWk   },\n      { id: pfx+'Wv',   data: b.Wv,   grad: dp.dWv   },\n      { id: pfx+'Wo',   data: b.Wo,   grad: dp.dWo   },\n      { id: pfx+'bo',   data: b.bo,   grad: dp.dbo   },\n      { id: pfx+'Wf1',  data: b.Wf1,  grad: dp.dWf1  },\n      { id: pfx+'bf1',  data: b.bf1,  grad: dp.dbf1  },\n      { id: pfx+'Wf2',  data: b.Wf2,  grad: dp.dWf2  },\n      { id: pfx+'bf2',  data: b.bf2,  grad: dp.dbf2  },\n      { id: pfx+'ln1g', data: b.ln1g, grad: dp.dln1g },\n      { id: pfx+'ln1b', data: b.ln1b, grad: dp.dln1b },\n      { id: pfx+'ln2g', data: b.ln2g, grad: dp.dln2g },\n      { id: pfx+'ln2b', data: b.ln2b, grad: dp.dln2b }\n    );\n  }\n\n  this.opt.step(params);\n  return loss;\n};\n\nMiniGPT.prototype.trainStep = function(tokens, targets) {\n  var cache = this.forward(tokens, true);\n  return this.backward(cache, targets);\n};\n\nMiniGPT.prototype.generate = function(seedStr, maxNew, tokenToIdx, idxToToken, opts) {\n  opts = opts || {};\n  var temp = typeof opts.temp === 'number' ? opts.temp : 1.0;\n  var topK = typeof opts.topK === 'number' ? opts.topK : 0;\n  var topP = typeof opts.topP === 'number' ? opts.topP : 1.0;\n  var mode = opts.tokenizer === 'word' ? 'word' : 'char';\n\n  var seedTokens = tokenizeText(seedStr || '', mode);\n  var ctx = [];\n  for (var i = 0; i < seedTokens.length; i++) {\n    var tok = seedTokens[i];\n    ctx.push(tokenToIdx.hasOwnProperty(tok) ? tokenToIdx[tok] : 0);\n  }\n\n  var resultTokens = seedTokens.slice();\n  for (var n = 0; n < maxNew; n++) {\n    var trimmed = ctx.length > this.T ? ctx.slice(ctx.length - this.T) : ctx.slice();\n    if (!trimmed.length) trimmed = [0];\n    var cache = this.forward(trimmed, false);\n    var lastLogits = Array.from(cache.logits[trimmed.length - 1]);\n    var probs = Array.from(softmax(lastLogits, temp));\n    var chosen = sampleFromDistribution(probs, topK, topP);\n    ctx.push(chosen);\n    resultTokens.push(idxToToken[chosen]);\n  }\n  return detokenizeText(resultTokens);\n};\n\nMiniGPT.prototype.countParams = function() {\n  var C = this.C;\n  return this.V * C + this.T * C +\n    this.L * (4 * C * C + 4 * C * C + 4 * C * (4 * C) + C + 4 * C + C + 4 * C) +\n    this.V * C + this.V + 2 * C;\n};\n\n// =============================================================================\n// WORKER HELPERS\n// =============================================================================\nfunction normalizeText(text) {\n  return String(text || '').replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n');\n}\n\nfunction tokenizeText(text, mode) {\n  text = normalizeText(text);\n  if (mode === 'word') {\n    var parts = text.match(/\\s+|[^\\s]+/g);\n    return parts ? parts : [];\n  }\n  return text.split('');\n}\n\nfunction detokenizeText(tokens) {\n  return (tokens || []).join('');\n}\n\nfunction sampleFromDistribution(probs, topK, topP) {\n  var items = [];\n  for (var i = 0; i < probs.length; i++) items.push({ i: i, p: probs[i] });\n\n  items.sort(function (a, b) { return b.p - a.p; });\n\n  if (typeof topK === 'number' && topK > 0 && topK < items.length) {\n    items = items.slice(0, topK);\n  }\n\n  if (typeof topP === 'number' && topP > 0 && topP < 1) {\n    var cum = 0;\n    var filtered = [];\n    for (var j = 0; j < items.length; j++) {\n      filtered.push(items[j]);\n      cum += items[j].p;\n      if (cum >= topP) break;\n    }\n    if (filtered.length) items = filtered;\n  }\n\n  var sum = 0;\n  for (var k = 0; k < items.length; k++) sum += items[k].p;\n  if (!sum) return items.length ? items[0].i : 0;\n\n  var r = Math.random() * sum;\n  var acc = 0;\n  for (var m = 0; m < items.length; m++) {\n    acc += items[m].p;\n    if (r <= acc) return items[m].i;\n  }\n  return items[items.length - 1].i;\n}\n\nfunction sleep(ms) {\n  return new Promise(function(resolve) { setTimeout(resolve, ms); });\n}\n\nfunction buildVocabulary(text, mode) {\n  var tokens = tokenizeText(text, mode);\n  var seen = {};\n  var vocab = [];\n  for (var i = 0; i < tokens.length; i++) {\n    var tok = tokens[i];\n    if (!seen[tok]) {\n      seen[tok] = true;\n      vocab.push(tok);\n    }\n  }\n  vocab.sort(function(a, b) {\n    return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });\n  });\n\n  var tokenToIdx = {};\n  var idxToToken = {};\n  for (var j = 0; j < vocab.length; j++) {\n    tokenToIdx[vocab[j]] = j;\n    idxToToken[j] = vocab[j];\n  }\n\n  var indices = new Array(tokens.length);\n  for (var k = 0; k < tokens.length; k++) {\n    indices[k] = tokenToIdx.hasOwnProperty(tokens[k]) ? tokenToIdx[tokens[k]] : 0;\n  }\n\n  return {\n    tokens: tokens,\n    vocab: vocab,\n    tokenToIdx: tokenToIdx,\n    idxToToken: idxToToken,\n    indices: indices\n  };\n}\n\nfunction packTyped(v) {\n  if (v == null) return v;\n  if (v instanceof Float32Array) return { __typed: 'f32', data: Array.from(v) };\n  if (Array.isArray(v)) return v.map(packTyped);\n  if (typeof v === 'object') {\n    var out = {};\n    for (var k in v) {\n      if (Object.prototype.hasOwnProperty.call(v, k) && typeof v[k] !== 'function') out[k] = packTyped(v[k]);\n    }\n    return out;\n  }\n  return v;\n}\n\nfunction unpackTyped(v) {\n  if (v == null) return v;\n  if (Array.isArray(v)) return v.map(unpackTyped);\n  if (typeof v === 'object') {\n    if (v.__typed === 'f32') return Float32Array.from(v.data || []);\n    var out = {};\n    for (var k in v) {\n      if (Object.prototype.hasOwnProperty.call(v, k) && k !== '__typed') out[k] = unpackTyped(v[k]);\n    }\n    return out;\n  }\n  return v;\n}\n\nfunction serializeAdam(opt) {\n  return {\n    lr: opt.lr,\n    b1: opt.b1,\n    b2: opt.b2,\n    wd: opt.wd,\n    t: opt.t,\n    state: packTyped(opt.state)\n  };\n}\n\nfunction deserializeAdam(serialized) {\n  var out = new Adam(serialized.lr, serialized.b1, serialized.b2, serialized.wd);\n  out.t = serialized.t || 0;\n  out.state = unpackTyped(serialized.state || {});\n  return out;\n}\n\nfunction serializeModel(model) {\n  var blocks = [];\n  for (var i = 0; i < model.blocks.length; i++) {\n    var b = model.blocks[i];\n    blocks.push({\n      ln1g: packTyped(b.ln1g),\n      ln1b: packTyped(b.ln1b),\n      Wq: packTyped(b.Wq),\n      Wk: packTyped(b.Wk),\n      Wv: packTyped(b.Wv),\n      Wo: packTyped(b.Wo),\n      bo: packTyped(b.bo),\n      ln2g: packTyped(b.ln2g),\n      ln2b: packTyped(b.ln2b),\n      Wf1: packTyped(b.Wf1),\n      bf1: packTyped(b.bf1),\n      Wf2: packTyped(b.Wf2),\n      bf2: packTyped(b.bf2)\n    });\n  }\n\n  return {\n    V: model.V,\n    T: model.T,\n    C: model.C,\n    H: model.H,\n    L: model.L,\n    dr: model.dr,\n    hd: model.hd,\n    wte: packTyped(model.wte),\n    wpe: packTyped(model.wpe),\n    blocks: blocks,\n    lnFg: packTyped(model.lnFg),\n    lnFb: packTyped(model.lnFb),\n    head: packTyped(model.head),\n    bhead: packTyped(model.bhead),\n    opt: serializeAdam(model.opt)\n  };\n}\n\nfunction deserializeModel(state) {\n  var model = new MiniGPT(state.V, state.T, state.C, state.H, state.L, state.dr, state.opt ? state.opt.lr : 0.001);\n  model.hd = state.hd || Math.floor(state.C / state.H);\n  model.wte = unpackTyped(state.wte);\n  model.wpe = unpackTyped(state.wpe);\n  model.lnFg = unpackTyped(state.lnFg);\n  model.lnFb = unpackTyped(state.lnFb);\n  model.head = unpackTyped(state.head);\n  model.bhead = unpackTyped(state.bhead);\n  model.blocks = [];\n  for (var i = 0; i < state.blocks.length; i++) {\n    var s = state.blocks[i];\n    model.blocks.push({\n      ln1g: unpackTyped(s.ln1g),\n      ln1b: unpackTyped(s.ln1b),\n      Wq: unpackTyped(s.Wq),\n      Wk: unpackTyped(s.Wk),\n      Wv: unpackTyped(s.Wv),\n      Wo: unpackTyped(s.Wo),\n      bo: unpackTyped(s.bo),\n      ln2g: unpackTyped(s.ln2g),\n      ln2b: unpackTyped(s.ln2b),\n      Wf1: unpackTyped(s.Wf1),\n      bf1: unpackTyped(s.bf1),\n      Wf2: unpackTyped(s.Wf2),\n      bf2: unpackTyped(s.bf2)\n    });\n  }\n  model.opt = deserializeAdam(state.opt || { lr: 0.001, b1: 0.9, b2: 0.999, wd: 0.01, t: 0, state: {} });\n  return model;\n}\n\nfunction makeCheckpoint(state) {\n  return {\n    schema: 2,\n    createdAt: new Date().toISOString(),\n    tokenizer: state.tokenizer,\n    config: state.config,\n    vocab: state.vocab,\n    tokenToIdx: state.tokenToIdx,\n    idxToToken: state.idxToToken,\n    model: serializeModel(state.model),\n    stats: state.stats\n  };\n}\n\nfunction restoreCheckpoint(checkpoint) {\n  return {\n    tokenizer: checkpoint.tokenizer || 'char',\n    config: checkpoint.config || {},\n    vocab: checkpoint.vocab || [],\n    tokenToIdx: checkpoint.tokenToIdx || {},\n    idxToToken: checkpoint.idxToToken || {},\n    model: deserializeModel(checkpoint.model),\n    stats: checkpoint.stats || {}\n  };\n}\n\nvar STATE = {\n  tokenizer: 'char',\n  config: {},\n  vocab: [],\n  tokenToIdx: {},\n  idxToToken: {},\n  indices: [],\n  text: '',\n  model: null,\n  training: false,\n  stopRequested: false,\n  stats: { epoch: 0, bestLoss: Infinity, smoothLoss: Infinity, lossHistory: [], start: 0 }\n};\n\nfunction postStatus(type, payload) {\n  self.postMessage(Object.assign({ type: type }, payload || {}));\n}\n\nasync function trainAsync(payload) {\n  if (STATE.training) return;\n\n  var text = normalizeText(payload.text || '');\n  var cfg = payload.config || {};\n  var mode = cfg.tokenizer === 'word' ? 'word' : 'char';\n  var vocabData = buildVocabulary(text, mode);\n\n  if (text.length < 8 || vocabData.vocab.length < 2) {\n    postStatus('error', { message: 'Training text is too small to build a model.' });\n    postStatus('done', { reason: 'invalid-data' });\n    return;\n  }\n\n  var blockSize = Math.max(4, Math.min(parseInt(cfg.blockSize, 10) || 24, 512));\n  var nEmbd = Math.max(8, parseInt(cfg.nEmbd, 10) || 64);\n  var nHeads = Math.max(1, parseInt(cfg.nHeads, 10) || 4);\n  var nLayers = Math.max(1, parseInt(cfg.nLayers, 10) || 2);\n  if (nEmbd % nHeads !== 0) {\n    nHeads = Math.max(1, Math.floor(nEmbd / Math.max(1, Math.floor(nEmbd / nHeads || 1))));\n    if (nEmbd % nHeads !== 0) nHeads = 1;\n  }\n\n  var epochs = Math.max(1, parseInt(cfg.epochs, 10) || 1000);\n  var batch = Math.max(1, parseInt(cfg.batch, 10) || 8);\n  var lrStart = Math.max(0.000001, parseFloat(cfg.lr) || 0.001);\n  var lrEnd = Math.max(0.000001, parseFloat(cfg.lrEnd) || lrStart);\n  var dropout = Math.min(0.5, Math.max(0, parseFloat(cfg.dropout) || 0.1));\n  var patience = Math.max(1, parseInt(cfg.patience, 10) || 300);\n  var minDelta = Math.max(0, parseFloat(cfg.minDelta) || 0.001);\n  var autosaveEnabled = !!cfg.autosave;\n  var autosaveEvery = Math.max(1, parseInt(cfg.autosaveEvery, 10) || 50);\n  var progressEvery = Math.max(1, parseInt(cfg.progressEvery, 10) || 10);\n  var yieldEvery = Math.max(1, parseInt(cfg.yieldEvery, 10) || 5);\n\n  STATE = {\n    tokenizer: mode,\n    config: {\n      blockSize: blockSize,\n      nEmbd: nEmbd,\n      nHeads: nHeads,\n      nLayers: nLayers,\n      epochs: epochs,\n      batch: batch,\n      lr: lrStart,\n      lrEnd: lrEnd,\n      dropout: dropout,\n      patience: patience,\n      minDelta: minDelta\n    },\n    vocab: vocabData.vocab,\n    tokenToIdx: vocabData.tokenToIdx,\n    idxToToken: vocabData.idxToToken,\n    indices: vocabData.indices,\n    text: text,\n    model: new MiniGPT(vocabData.vocab.length, blockSize, nEmbd, nHeads, nLayers, dropout, lrStart),\n    training: true,\n    stopRequested: false,\n    stats: { epoch: 0, bestLoss: Infinity, smoothLoss: Infinity, lossHistory: [], start: performance.now() }\n  };\n\n  var model = STATE.model;\n  var indices = STATE.indices;\n  var best = Infinity;\n  var badCount = 0;\n  var smooth = Math.log(Math.max(2, STATE.vocab.length));\n  var totalSeen = 0;\n\n  postStatus('start', {\n    vocabSize: STATE.vocab.length,\n    params: model.countParams(),\n    config: STATE.config,\n    tokenizer: mode\n  });\n\n  for (var epoch = 1; epoch <= epochs; epoch++) {\n    if (STATE.stopRequested) break;\n\n    var currentLr = lrStart + (lrEnd - lrStart) * (epoch / epochs);\n    model.opt.lr = currentLr;\n\n    var batchLoss = 0;\n    var validStarts = Math.max(1, indices.length - blockSize - 1);\n\n    for (var b = 0; b < batch; b++) {\n      var start = Math.floor(Math.random() * validStarts);\n      var tokens = indices.slice(start, start + blockSize);\n      var targets = indices.slice(start + 1, start + blockSize + 1);\n      if (tokens.length < blockSize || targets.length < blockSize) continue;\n      batchLoss += model.trainStep(tokens, targets);\n      totalSeen += blockSize;\n    }\n\n    var avgLoss = batchLoss / batch;\n    if (!isFinite(avgLoss)) avgLoss = smooth;\n    smooth = smooth * 0.95 + avgLoss * 0.05;\n    STATE.stats.epoch = epoch;\n    STATE.stats.smoothLoss = smooth;\n    STATE.stats.lossHistory.push(smooth);\n    if (STATE.stats.lossHistory.length > 600) STATE.stats.lossHistory.shift();\n\n    if (smooth < best - minDelta) {\n      best = smooth;\n      badCount = 0;\n      STATE.stats.bestLoss = best;\n    } else {\n      badCount++;\n    }\n\n    if (epoch % progressEvery === 0 || epoch === 1 || epoch === epochs) {\n      var elapsed = (performance.now() - STATE.stats.start) / 1000;\n      var speed = elapsed > 0 ? totalSeen / elapsed : 0;\n      postStatus('progress', {\n        epoch: epoch,\n        epochs: epochs,\n        loss: smooth,\n        bestLoss: best,\n        lr: currentLr,\n        speed: speed,\n        elapsed: elapsed,\n        lossHistory: STATE.stats.lossHistory.slice(-200)\n      });\n    }\n\n    if (autosaveEnabled && epoch % autosaveEvery === 0) {\n      postStatus('autosave', { checkpoint: makeCheckpoint(STATE) });\n    }\n\n    if (badCount >= patience) {\n      postStatus('log', { level: 'warn', message: 'Early stopping triggered.' });\n      break;\n    }\n\n    if (epoch % yieldEvery === 0) {\n      await sleep(0);\n    }\n  }\n\n  STATE.training = false;\n\n  var reason = STATE.stopRequested ? 'stopped' : 'finished';\n  postStatus('done', {\n    reason: reason,\n    checkpoint: makeCheckpoint(STATE),\n    epoch: STATE.stats.epoch,\n    bestLoss: STATE.stats.bestLoss,\n    loss: STATE.stats.smoothLoss\n  });\n}\n\nfunction setModelFromCheckpoint(checkpoint) {\n  var restored = restoreCheckpoint(checkpoint);\n  STATE.tokenizer = restored.tokenizer;\n  STATE.config = restored.config;\n  STATE.vocab = restored.vocab;\n  STATE.tokenToIdx = restored.tokenToIdx;\n  STATE.idxToToken = restored.idxToToken;\n  STATE.model = restored.model;\n  STATE.training = false;\n  STATE.stopRequested = false;\n  STATE.stats = restored.stats || { epoch: 0, bestLoss: Infinity, smoothLoss: Infinity, lossHistory: [], start: performance.now() };\n}\n\nself.onmessage = async function (e) {\n  var msg = e.data || {};\n  try {\n    if (msg.type === 'train') {\n      await trainAsync(msg);\n    } else if (msg.type === 'stop') {\n      STATE.stopRequested = true;\n    } else if (msg.type === 'generate') {\n      if (!STATE.model) {\n        postStatus('error', { id: msg.id, message: 'No model loaded.' });\n        return;\n      }\n      var result = STATE.model.generate(msg.seed || '', msg.length || 150, STATE.tokenToIdx, STATE.idxToToken, {\n        temp: msg.temp,\n        topK: msg.topK,\n        topP: msg.topP,\n        tokenizer: STATE.tokenizer\n      });\n      postStatus('generated', { id: msg.id, result: result });\n    } else if (msg.type === 'export') {\n      if (!STATE.model) {\n        postStatus('error', { id: msg.id, message: 'Nothing to export.' });\n        return;\n      }\n      postStatus('exported', { id: msg.id, checkpoint: makeCheckpoint(STATE) });\n    } else if (msg.type === 'import') {\n      setModelFromCheckpoint(msg.checkpoint);\n      postStatus('imported', {\n        id: msg.id,\n        vocabSize: STATE.vocab.length,\n        params: STATE.model ? STATE.model.countParams() : 0\n      });\n    } else if (msg.type === 'reset') {\n      STATE = {\n        tokenizer: 'char',\n        config: {},\n        vocab: [],\n        tokenToIdx: {},\n        idxToToken: {},\n        indices: [],\n        text: '',\n        model: null,\n        training: false,\n        stopRequested: false,\n        stats: { epoch: 0, bestLoss: Infinity, smoothLoss: Infinity, lossHistory: [], start: 0 }\n      };\n      postStatus('reset', {});\n    }\n  } catch (err) {\n    postStatus('error', { id: msg.id, message: err && err.message ? err.message : String(err) });\n  }\n};\n";
-  
-(function () {
-  'use strict';
+  // =============================================================================
+  // WORKER SOURCE — TensorFlow.js + WebGPU forced GPU training
+  // =============================================================================
+  const WORKER_SOURCE = `
+"use strict";
 
-  const ids = [
-    'data','dropZone','txtFile','fileName','btnTrain','btnStop','btnReset','btnGen',
-    'btnExportModel','btnImportModel','btnClearModel','modelFile','btnLoadAutosave',
-    'btnClearAutosave','btnApplySafe','btnSafePreset','btnBalancedPreset','btnMaxPreset',
-    'blockSize','nEmbd','nHeads','nLayers','epochs','batch','lr','lrEnd','dropout',
-    'tokenizer','topK','topP','genLen','tempR','tempV','seed','patience','minDelta',
-    'autosave','autosaveEvery','sVocab','sParams','sEpoch','sLoss','sBest','sSpeed',
-    'sTime','sMem','sDevice','sRisk','sRecommend','sTokenCount','pbar','cvs','output',
-    'log','statusPill','datasetInfo','sectionSafety'
-  ];
-  const els = {};
-  ids.forEach(id => els[id] = document.getElementById(id));
+// Load TF.js + WebGPU backend from CDN.
+// IMPORTANT: this worker is classic (not module). importScripts() is available.
+self.importScripts(
+  'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js',
+  'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgpu@4.22.0/dist/tf-backend-webgpu.min.js'
+);
 
-  let worker = null;
-  let busy = false;
-  let currentRequestId = 0;
-  const pending = new Map();
-  let lossHist = [];
-  let settingsTimer = null;
-  let autosaveDB = null;
-  let lastCheckpoint = null;
+// =============================================================================
+// GPU BACKEND — force WebGPU, fallback to WebGL, refuse CPU
+// =============================================================================
+async function initGPUBackend() {
+  let chosen = null;
+  let info = { backend: null, adapter: null, vendor: null, architecture: null };
 
-  function safeNumber(value, fallback) {
-    const n = Number(value);
-    return Number.isFinite(n) ? n : fallback;
-  }
-
-  function fmtNum(n) {
-    if (!Number.isFinite(n)) return '--';
-    if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
-    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
-    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
-    return String(Math.round(n));
-  }
-
-  function fmtTime(sec) {
-    if (!Number.isFinite(sec) || sec < 0) return '--';
-    if (sec < 60) return sec.toFixed(1) + 's';
-    const m = Math.floor(sec / 60);
-    const s = Math.floor(sec % 60);
-    return `${m}m ${s}s`;
-  }
-
-  function appendLog(message, kind = 'info') {
-    const log = els.log;
-    const line = document.createElement('div');
-    line.className = `log-line ${kind}`;
-    line.textContent = message;
-    log.appendChild(line);
-    while (log.children.length > 120) log.removeChild(log.firstChild);
-    log.scrollTop = log.scrollHeight;
-  }
-
-  function setStatus(text, kind = 'neutral') {
-    els.statusPill.textContent = text;
-    els.statusPill.dataset.kind = kind;
-  }
-
-  function normalizeText(text) {
-    return String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  }
-
-  function countTextStats(text) {
-    const normalized = normalizeText(text);
-    const chars = normalized.length;
-    const lines = normalized ? normalized.split('\n').length : 0;
-    const words = normalized.trim() ? normalized.trim().split(/\s+/).length : 0;
-    return { chars, lines, words };
-  }
-
-  function getDeviceTier() {
-    const mem = navigator.deviceMemory || 4;
-    const cores = navigator.hardwareConcurrency || 4;
-    const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-    if (mobile || mem <= 4 || cores <= 4) return 'low';
-    if (mem <= 8 || cores <= 8) return 'mid';
-    return 'high';
-  }
-
-  function estimateLoad(cfg) {
-    const blockSize = Math.max(4, safeNumber(cfg.blockSize, 24));
-    const nEmbd = Math.max(8, safeNumber(cfg.nEmbd, 64));
-    const nHeads = Math.max(1, safeNumber(cfg.nHeads, 4));
-    const nLayers = Math.max(1, safeNumber(cfg.nLayers, 2));
-    const batch = Math.max(1, safeNumber(cfg.batch, 8));
-    const tokenizer = cfg.tokenizer || 'char';
-    const tokenFactor = tokenizer === 'word' ? 1.2 : 1.0;
-    return blockSize * blockSize * nEmbd * nLayers * batch * tokenFactor / Math.max(1, nHeads);
-  }
-
-  function getRiskLevel(score, tier) {
-    const limits = {
-      low: [2.5e6, 8e6],
-      mid: [8e6, 2e7],
-      high: [2e7, 6e7]
-    };
-    const [safe, warn] = limits[tier];
-    if (score <= safe) return 'safe';
-    if (score <= warn) return 'warning';
-    return 'danger';
-  }
-
-  function recommendedPreset(tier) {
-    if (tier === 'low') return {
-      blockSize: 48, nEmbd: 96, nHeads: 4, nLayers: 3, batch: 4, epochs: 2000, lr: 0.0007, lrEnd: 0.00015, dropout: 0.1
-    };
-    if (tier === 'mid') return {
-      blockSize: 64, nEmbd: 128, nHeads: 8, nLayers: 4, batch: 8, epochs: 3000, lr: 0.0005, lrEnd: 0.0001, dropout: 0.1
-    };
-    return {
-      blockSize: 96, nEmbd: 192, nHeads: 8, nLayers: 6, batch: 12, epochs: 5000, lr: 0.00035, lrEnd: 0.00008, dropout: 0.1
-    };
-  }
-
-  function applyPreset(preset) {
-    const values = typeof preset === 'string' ? recommendedPreset(preset) : preset;
-    if (!values) return;
-    if (values.blockSize != null) els.blockSize.value = values.blockSize;
-    if (values.nEmbd != null) els.nEmbd.value = values.nEmbd;
-    if (values.nHeads != null) els.nHeads.value = values.nHeads;
-    if (values.nLayers != null) els.nLayers.value = values.nLayers;
-    if (values.batch != null) els.batch.value = values.batch;
-    if (values.epochs != null) els.epochs.value = values.epochs;
-    if (values.lr != null) els.lr.value = values.lr;
-    if (values.lrEnd != null) els.lrEnd.value = values.lrEnd;
-    if (values.dropout != null) els.dropout.value = values.dropout;
-    updateSafetyUI();
-    saveSettingsDebounced();
-  }
-
-  function readConfig() {
-    return {
-      blockSize: parseInt(els.blockSize.value, 10) || 24,
-      nEmbd: parseInt(els.nEmbd.value, 10) || 64,
-      nHeads: parseInt(els.nHeads.value, 10) || 4,
-      nLayers: parseInt(els.nLayers.value, 10) || 2,
-      epochs: parseInt(els.epochs.value, 10) || 1000,
-      batch: parseInt(els.batch.value, 10) || 8,
-      lr: parseFloat(els.lr.value) || 0.001,
-      lrEnd: parseFloat(els.lrEnd.value) || 0.0001,
-      dropout: parseFloat(els.dropout.value) || 0.1,
-      tokenizer: els.tokenizer.value,
-      topK: parseInt(els.topK.value, 10) || 0,
-      topP: Math.min(1, Math.max(0.1, parseFloat(els.topP.value) || 0.95)),
-      patience: parseInt(els.patience.value, 10) || 400,
-      minDelta: parseFloat(els.minDelta.value) || 0.001,
-      autosave: !!els.autosave.checked,
-      autosaveEvery: parseInt(els.autosaveEvery.value, 10) || 50,
-      progressEvery: 10,
-      yieldEvery: 5
-    };
-  }
-
-  function setConfig(cfg) {
-    if (!cfg) return;
-    const fields = ['blockSize','nEmbd','nHeads','nLayers','epochs','batch','lr','lrEnd','dropout','tokenizer','topK','topP','patience','minDelta','autosaveEvery'];
-    fields.forEach(k => {
-      if (cfg[k] != null && els[k]) els[k].value = cfg[k];
-    });
-    if (cfg.autosave != null) els.autosave.checked = !!cfg.autosave;
-    if (cfg.seed != null) els.seed.value = cfg.seed;
-    if (cfg.genLen != null) els.genLen.value = cfg.genLen;
-    if (cfg.temp != null) {
-      els.tempR.value = cfg.temp;
-      els.tempV.textContent = Number(cfg.temp).toFixed(1);
-    }
-    updateSafetyUI();
-    saveSettingsDebounced();
-  }
-
-  function drawLossGraph(hist) {
-    const canvas = els.cvs;
-    const ctx = canvas.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    const width = Math.max(1, Math.floor(rect.width * dpr));
-    const height = Math.max(160, Math.floor(rect.height * dpr));
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-    ctx.clearRect(0, 0, width, height);
-    if (!hist || hist.length < 2) {
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.font = `${12 * dpr}px ui-sans-serif, system-ui`;
-      ctx.fillText('Loss plot appears here after training starts.', 16 * dpr, 24 * dpr);
-      return;
-    }
-    let min = hist[0], max = hist[0];
-    for (let i = 1; i < hist.length; i++) {
-      if (hist[i] < min) min = hist[i];
-      if (hist[i] > max) max = hist[i];
-    }
-    const pad = 18 * dpr;
-    const range = (max - min) || 1;
-    ctx.beginPath();
-    for (let i = 0; i < hist.length; i++) {
-      const x = pad + (i / (hist.length - 1)) * (width - pad * 2);
-      const y = pad + (1 - (hist[i] - min) / range) * (height - pad * 2);
-      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-    }
-    ctx.lineWidth = 2 * dpr;
-    ctx.strokeStyle = 'rgba(124, 192, 255, 0.95)';
-    ctx.stroke();
-
-    ctx.fillStyle = 'rgba(255,255,255,0.38)';
-    ctx.font = `${11 * dpr}px ui-sans-serif, system-ui`;
-    ctx.fillText(`loss ${hist[hist.length - 1].toFixed(4)}`, pad, pad - 4);
-    ctx.fillText(`min ${min.toFixed(4)}`, width - pad - ctx.measureText(`min ${min.toFixed(4)}`).width, height - 10);
-  }
-
-  function saveSettingsDebounced() {
-    clearTimeout(settingsTimer);
-    settingsTimer = setTimeout(saveSettings, 250);
-  }
-
-  function saveSettings() {
-    const payload = {
-      blockSize: els.blockSize.value,
-      nEmbd: els.nEmbd.value,
-      nHeads: els.nHeads.value,
-      nLayers: els.nLayers.value,
-      epochs: els.epochs.value,
-      batch: els.batch.value,
-      lr: els.lr.value,
-      lrEnd: els.lrEnd.value,
-      dropout: els.dropout.value,
-      tokenizer: els.tokenizer.value,
-      topK: els.topK.value,
-      topP: els.topP.value,
-      seed: els.seed.value,
-      genLen: els.genLen.value,
-      temp: els.tempR.value,
-      patience: els.patience.value,
-      minDelta: els.minDelta.value,
-      autosave: els.autosave.checked,
-      autosaveEvery: els.autosaveEvery.value,
-      data: els.data.value
-    };
-    try { localStorage.setItem('gptjs.settings', JSON.stringify(payload)); } catch (_) {}
-  }
-
-  function loadSettings() {
+  // Try WebGPU first
+  if (typeof navigator !== 'undefined' && navigator.gpu) {
     try {
-      const raw = localStorage.getItem('gptjs.settings');
-      if (!raw) return;
-      const cfg = JSON.parse(raw);
-      if (!cfg || typeof cfg !== 'object') return;
-      setConfig(cfg);
-      if (typeof cfg.data === 'string' && cfg.data.trim()) els.data.value = cfg.data;
-      updateSafetyUI();
-    } catch (_) {}
+      await tf.setBackend('webgpu');
+      await tf.ready();
+      if (tf.getBackend() === 'webgpu') {
+        chosen = 'webgpu';
+        try {
+          const adapter = await navigator.gpu.requestAdapter();
+          if (adapter) {
+            const ai = adapter.info || {};
+            info.vendor = ai.vendor || null;
+            info.architecture = ai.architecture || null;
+            info.adapter = (ai.vendor || '?') + ' ' + (ai.architecture || ai.device || '');
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      self.postMessage({ type: 'log', level: 'warn', message: 'WebGPU init failed: ' + (e.message || e) });
+    }
   }
 
-  function ensureWorker() {
-    if (worker) return worker;
-    const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
-    const url = URL.createObjectURL(blob);
-    worker = new Worker(url);
-    worker.onmessage = onWorkerMessage;
-    worker.onerror = (err) => {
-      busy = false;
-      setStatus('Worker error', 'danger');
-      appendLog(err.message || 'Worker error', 'error');
-      console.error(err);
-    };
-    setStatus('Ready', 'safe');
-    return worker;
+  // Fallback to WebGL (still GPU)
+  if (!chosen) {
+    try {
+      await tf.setBackend('webgl');
+      await tf.ready();
+      if (tf.getBackend() === 'webgl') {
+        chosen = 'webgl';
+        try {
+          const gl = tf.backend().gpgpu && tf.backend().gpgpu.gl;
+          if (gl) {
+            const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+            if (dbg) {
+              info.adapter = gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || null;
+              info.vendor = gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL) || null;
+            }
+          }
+        } catch (_) {}
+      }
+    } catch (e) {
+      self.postMessage({ type: 'log', level: 'warn', message: 'WebGL init failed: ' + (e.message || e) });
+    }
   }
 
-  function postToWorker(msg) {
-    ensureWorker();
-    worker.postMessage(msg);
+  if (!chosen || chosen === 'cpu') {
+    throw new Error('No GPU backend available (WebGPU/WebGL). Refusing to train on CPU.');
   }
 
-  function requestWorker(type, payload = {}) {
-    return new Promise((resolve, reject) => {
-      const id = ++currentRequestId;
-      pending.set(id, { resolve, reject });
-      postToWorker(Object.assign({ type, id }, payload));
-      setTimeout(() => {
-        if (pending.has(id)) {
-          pending.delete(id);
-          reject(new Error('Worker request timed out.'));
-        }
-      }, 120000);
+  info.backend = chosen;
+
+  // GPU performance flags
+  try {
+    tf.env().set('WEBGL_PACK', true);
+    tf.env().set('WEBGL_FORCE_F16_TEXTURES', false);
+    tf.env().set('WEBGL_LAZILY_UNPACK', true);
+    tf.env().set('CHECK_COMPUTATION_FOR_ERRORS', false);
+  } catch (_) {}
+
+  return info;
+}
+
+// =============================================================================
+// HELPERS
+// =============================================================================
+function normalizeText(text) {
+  return String(text || '').replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n');
+}
+
+function tokenizeText(text, mode) {
+  text = normalizeText(text);
+  if (mode === 'word') {
+    var parts = text.match(/\\s+|[^\\s]+/g);
+    return parts ? parts : [];
+  }
+  return text.split('');
+}
+
+function detokenizeText(tokens) {
+  return (tokens || []).join('');
+}
+
+function buildVocabulary(text, mode) {
+  var tokens = tokenizeText(text, mode);
+  var seen = Object.create(null);
+  var vocab = [];
+  for (var i = 0; i < tokens.length; i++) {
+    var tok = tokens[i];
+    if (!seen[tok]) { seen[tok] = true; vocab.push(tok); }
+  }
+  vocab.sort(function (a, b) {
+    return String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' });
+  });
+  var tokenToIdx = Object.create(null);
+  var idxToToken = Object.create(null);
+  for (var j = 0; j < vocab.length; j++) {
+    tokenToIdx[vocab[j]] = j;
+    idxToToken[j] = vocab[j];
+  }
+  var indices = new Int32Array(tokens.length);
+  for (var k = 0; k < tokens.length; k++) {
+    indices[k] = tokenToIdx[tokens[k]] != null ? tokenToIdx[tokens[k]] : 0;
+  }
+  return { tokens: tokens, vocab: vocab, tokenToIdx: tokenToIdx, idxToToken: idxToToken, indices: indices };
+}
+
+function sampleFromDistribution(probs, topK, topP) {
+  var items = new Array(probs.length);
+  for (var i = 0; i < probs.length; i++) items[i] = { i: i, p: probs[i] };
+  items.sort(function (a, b) { return b.p - a.p; });
+  if (typeof topK === 'number' && topK > 0 && topK < items.length) items = items.slice(0, topK);
+  if (typeof topP === 'number' && topP > 0 && topP < 1) {
+    var cum = 0, filtered = [];
+    for (var j = 0; j < items.length; j++) {
+      filtered.push(items[j]);
+      cum += items[j].p;
+      if (cum >= topP) break;
+    }
+    if (filtered.length) items = filtered;
+  }
+  var sum = 0;
+  for (var k = 0; k < items.length; k++) sum += items[k].p;
+  if (!sum) return items.length ? items[0].i : 0;
+  var r = Math.random() * sum, acc = 0;
+  for (var m = 0; m < items.length; m++) {
+    acc += items[m].p;
+    if (r <= acc) return items[m].i;
+  }
+  return items[items.length - 1].i;
+}
+
+// =============================================================================
+// TRANSFORMER (decoder, GPT-style) — all ops on GPU via tf
+// =============================================================================
+function layerNorm(x, g, b, eps) {
+  return tf.tidy(function () {
+    var moments = tf.moments(x, -1, true);
+    var inv = tf.rsqrt(moments.variance.add(eps || 1e-5));
+    return x.sub(moments.mean).mul(inv).mul(g).add(b);
+  });
+}
+
+function gelu(x) {
+  // Tanh approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 x^3)))
+  return tf.tidy(function () {
+    var c1 = 0.7978845608028654;
+    var c2 = 0.044715;
+    var inner = x.add(x.pow(3).mul(c2)).mul(c1);
+    return x.mul(0.5).mul(tf.tanh(inner).add(1));
+  });
+}
+
+function MiniGPT(V, T, C, H, L, dr) {
+  if (C % H !== 0) throw new Error('n_embd must be divisible by n_heads');
+  this.V = V; this.T = T; this.C = C; this.H = H; this.L = L;
+  this.hd = (C / H) | 0;
+  this.dr = dr;
+
+  var initStd = 0.02;
+  var residStd = initStd / Math.sqrt(2 * Math.max(1, L)); // GPT-2 scaled init for residual proj
+
+  function trunc(shape, std) { return tf.truncatedNormal(shape, 0, std); }
+
+  this.wte = tf.variable(trunc([V, C], initStd), true, 'wte');
+  this.wpe = tf.variable(trunc([T, C], initStd), true, 'wpe');
+
+  this.blocks = [];
+  for (var l = 0; l < L; l++) {
+    this.blocks.push({
+      ln1g: tf.variable(tf.ones([C]),  true, 'b' + l + '_ln1g'),
+      ln1b: tf.variable(tf.zeros([C]), true, 'b' + l + '_ln1b'),
+      Wq:   tf.variable(trunc([C, C], initStd), true, 'b' + l + '_Wq'),
+      Wk:   tf.variable(trunc([C, C], initStd), true, 'b' + l + '_Wk'),
+      Wv:   tf.variable(trunc([C, C], initStd), true, 'b' + l + '_Wv'),
+      Wo:   tf.variable(trunc([C, C], residStd), true, 'b' + l + '_Wo'),
+      bo:   tf.variable(tf.zeros([C]), true, 'b' + l + '_bo'),
+      ln2g: tf.variable(tf.ones([C]),  true, 'b' + l + '_ln2g'),
+      ln2b: tf.variable(tf.zeros([C]), true, 'b' + l + '_ln2b'),
+      Wf1:  tf.variable(trunc([C, 4 * C], initStd), true, 'b' + l + '_Wf1'),
+      bf1:  tf.variable(tf.zeros([4 * C]), true, 'b' + l + '_bf1'),
+      Wf2:  tf.variable(trunc([4 * C, C], residStd), true, 'b' + l + '_Wf2'),
+      bf2:  tf.variable(tf.zeros([C]), true, 'b' + l + '_bf2')
     });
   }
 
-  async function openAutosaveDB() {
-    if (autosaveDB) return autosaveDB;
-    autosaveDB = await new Promise((resolve, reject) => {
-      const req = indexedDB.open('gptjs-db', 1);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains('state')) db.createObjectStore('state');
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error || new Error('IndexedDB error'));
+  this.lnFg  = tf.variable(tf.ones([C]),  true, 'lnFg');
+  this.lnFb  = tf.variable(tf.zeros([C]), true, 'lnFb');
+  this.head  = tf.variable(trunc([C, V], initStd), true, 'head');
+  this.bhead = tf.variable(tf.zeros([V]), true, 'bhead');
+
+  // Persistent causal mask, shape [T, T] (1 lower-tri, 0 upper-tri).
+  this._mask = tf.keep(tf.linalg.bandPart(tf.ones([T, T]), -1, 0));
+}
+
+MiniGPT.prototype.forward = function (idx, training) {
+  var self = this;
+  var V = this.V, C = this.C, H = this.H, hd = this.hd, dr = this.dr;
+  var Tmax = this.T;
+
+  return tf.tidy(function () {
+    var shape = idx.shape;
+    var B = shape[0], T = shape[1];
+
+    var tokEmb = tf.gather(self.wte, idx);                       // [B, T, C]
+    var posEmb = self.wpe.slice([0, 0], [T, C]).expandDims(0);   // [1, T, C]
+    var x = tokEmb.add(posEmb);
+    if (training && dr > 0) x = tf.dropout(x, dr);
+
+    for (var li = 0; li < self.blocks.length; li++) {
+      var b = self.blocks[li];
+
+      // Attention block (pre-norm)
+      var n1 = layerNorm(x, b.ln1g, b.ln1b);
+      var flat = n1.reshape([B * T, C]);
+
+      var q = tf.matMul(flat, b.Wq).reshape([B, T, H, hd]).transpose([0, 2, 1, 3]); // [B, H, T, hd]
+      var k = tf.matMul(flat, b.Wk).reshape([B, T, H, hd]).transpose([0, 2, 1, 3]);
+      var v = tf.matMul(flat, b.Wv).reshape([B, T, H, hd]).transpose([0, 2, 1, 3]);
+
+      var scale = 1.0 / Math.sqrt(hd);
+      var scores = tf.matMul(q, k, false, true).mul(scale); // [B, H, T, T]
+      var maskTT = self._mask.slice([0, 0], [T, T]);
+      // additive mask: -1e9 where future, 0 elsewhere
+      var addMask = tf.scalar(1).sub(maskTT).mul(-1e9);
+      scores = scores.add(addMask);
+      var attn = tf.softmax(scores, -1);
+      if (training && dr > 0) attn = tf.dropout(attn, dr);
+
+      var ctx = tf.matMul(attn, v); // [B, H, T, hd]
+      ctx = ctx.transpose([0, 2, 1, 3]).reshape([B * T, C]);
+      var proj = tf.matMul(ctx, b.Wo).add(b.bo).reshape([B, T, C]);
+      if (training && dr > 0) proj = tf.dropout(proj, dr);
+      x = x.add(proj);
+
+      // FFN block (pre-norm)
+      var n2 = layerNorm(x, b.ln2g, b.ln2b);
+      var flat2 = n2.reshape([B * T, C]);
+      var ff = tf.matMul(flat2, b.Wf1).add(b.bf1);
+      ff = gelu(ff);
+      ff = tf.matMul(ff, b.Wf2).add(b.bf2).reshape([B, T, C]);
+      if (training && dr > 0) ff = tf.dropout(ff, dr);
+      x = x.add(ff);
+    }
+
+    var nF = layerNorm(x, self.lnFg, self.lnFb);
+    var logits = tf.matMul(nF.reshape([B * T, C]), self.head).add(self.bhead).reshape([B, T, V]);
+    return logits;
+  });
+};
+
+MiniGPT.prototype.lossAndLogits = function (idx, targets) {
+  var self = this, V = this.V;
+  return tf.tidy(function () {
+    var logits = self.forward(idx, true);
+    var flatLogits = logits.reshape([-1, V]);
+    var flatTargets = targets.reshape([-1]).cast('int32');
+    var oneHot = tf.oneHot(flatTargets, V);
+    var logProbs = tf.logSoftmax(flatLogits, -1);
+    var nll = oneHot.mul(logProbs).sum(-1).mean().neg();
+    return nll;
+  });
+};
+
+MiniGPT.prototype.trainables = function () {
+  var out = [this.wte, this.wpe, this.lnFg, this.lnFb, this.head, this.bhead];
+  for (var i = 0; i < this.blocks.length; i++) {
+    var b = this.blocks[i];
+    out.push(b.ln1g, b.ln1b, b.Wq, b.Wk, b.Wv, b.Wo, b.bo,
+             b.ln2g, b.ln2b, b.Wf1, b.bf1, b.Wf2, b.bf2);
+  }
+  return out;
+};
+
+MiniGPT.prototype.countParams = function () {
+  var total = 0, vs = this.trainables();
+  for (var i = 0; i < vs.length; i++) total += vs[i].size;
+  return total;
+};
+
+MiniGPT.prototype.dispose = function () {
+  var vs = this.trainables();
+  for (var i = 0; i < vs.length; i++) vs[i].dispose();
+  if (this._mask) this._mask.dispose();
+};
+
+// =============================================================================
+// Custom AdamW step with global gradient norm clipping (all on GPU)
+// =============================================================================
+function AdamW(params, lr, b1, b2, eps, weightDecay) {
+  this.params = params;
+  this.lr = lr; this.b1 = b1 || 0.9; this.b2 = b2 || 0.95;
+  this.eps = eps || 1e-8; this.wd = weightDecay || 0.0;
+  this.t = 0;
+  this.m = params.map(function (p) { return tf.variable(tf.zerosLike(p), false); });
+  this.v = params.map(function (p) { return tf.variable(tf.zerosLike(p), false); });
+  // Avoid weight decay on biases / LN params (size 1D)
+  this._noWD = params.map(function (p) {
+    var n = (p.name || '').toLowerCase();
+    return p.shape.length < 2 || n.indexOf('ln') !== -1 || n.indexOf('bf') !== -1 ||
+           n.indexOf('bo') !== -1 || n === 'bhead';
+  });
+}
+
+AdamW.prototype.step = function (grads, gradClip) {
+  var self = this;
+  this.t++;
+  var t = this.t;
+  var b1 = this.b1, b2 = this.b2, eps = this.eps, wd = this.wd, lr = this.lr;
+  var bc1 = 1 - Math.pow(b1, t);
+  var bc2 = 1 - Math.pow(b2, t);
+
+  // Global grad norm and clip coefficient (computed on GPU, single small download).
+  var clipCoef = 1.0;
+  if (gradClip && gradClip > 0) {
+    var sqSum = tf.tidy(function () {
+      var acc = tf.scalar(0);
+      for (var i = 0; i < self.params.length; i++) {
+        var g = grads[self.params[i].name];
+        if (!g) continue;
+        acc = acc.add(g.square().sum());
+      }
+      return acc;
     });
-    return autosaveDB;
+    var totalNorm = Math.sqrt(sqSum.dataSync()[0] || 0);
+    sqSum.dispose();
+    if (isFinite(totalNorm) && totalNorm > gradClip) clipCoef = gradClip / (totalNorm + 1e-6);
   }
 
-  async function saveAutosave(checkpoint) {
-    if (!els.autosave.checked || !checkpoint) return;
+  tf.tidy(function () {
+    for (var i = 0; i < self.params.length; i++) {
+      var p = self.params[i];
+      var g = grads[p.name];
+      if (!g) continue;
+      if (clipCoef !== 1.0) g = g.mul(clipCoef);
+
+      var newM = self.m[i].mul(b1).add(g.mul(1 - b1));
+      var newV = self.v[i].mul(b2).add(g.square().mul(1 - b2));
+      self.m[i].assign(newM);
+      self.v[i].assign(newV);
+
+      var mHat = newM.div(bc1);
+      var vHat = newV.div(bc2);
+
+      var update = mHat.div(vHat.sqrt().add(eps));
+      var newP;
+      if (wd > 0 && !self._noWD[i]) {
+        // Decoupled weight decay: p <- p - lr*(update + wd*p)
+        newP = p.sub(update.add(p.mul(wd)).mul(lr));
+      } else {
+        newP = p.sub(update.mul(lr));
+      }
+      p.assign(newP);
+    }
+  });
+
+  return clipCoef;
+};
+
+AdamW.prototype.dispose = function () {
+  for (var i = 0; i < this.m.length; i++) this.m[i].dispose();
+  for (var i = 0; i < this.v.length; i++) this.v[i].dispose();
+};
+
+// =============================================================================
+// CHECKPOINTING
+// =============================================================================
+async function tensorsToPlain(model) {
+  async function arr(v) { return Array.from(await v.data()); }
+  var blocks = [];
+  for (var i = 0; i < model.blocks.length; i++) {
+    var b = model.blocks[i];
+    blocks.push({
+      ln1g: await arr(b.ln1g), ln1b: await arr(b.ln1b),
+      Wq: await arr(b.Wq), Wk: await arr(b.Wk), Wv: await arr(b.Wv),
+      Wo: await arr(b.Wo), bo: await arr(b.bo),
+      ln2g: await arr(b.ln2g), ln2b: await arr(b.ln2b),
+      Wf1: await arr(b.Wf1), bf1: await arr(b.bf1),
+      Wf2: await arr(b.Wf2), bf2: await arr(b.bf2)
+    });
+  }
+  return {
+    V: model.V, T: model.T, C: model.C, H: model.H, L: model.L, dr: model.dr,
+    wte: await arr(model.wte), wpe: await arr(model.wpe),
+    blocks: blocks,
+    lnFg: await arr(model.lnFg), lnFb: await arr(model.lnFb),
+    head: await arr(model.head), bhead: await arr(model.bhead)
+  };
+}
+
+function plainToModel(plain) {
+  var m = new MiniGPT(plain.V, plain.T, plain.C, plain.H, plain.L, plain.dr || 0.0);
+  function set(target, arr) {
+    var t = tf.tensor(Float32Array.from(arr), target.shape);
+    target.assign(t);
+    t.dispose();
+  }
+  set(m.wte, plain.wte); set(m.wpe, plain.wpe);
+  set(m.lnFg, plain.lnFg); set(m.lnFb, plain.lnFb);
+  set(m.head, plain.head); set(m.bhead, plain.bhead);
+  for (var i = 0; i < m.blocks.length; i++) {
+    var src = plain.blocks[i], b = m.blocks[i];
+    set(b.ln1g, src.ln1g); set(b.ln1b, src.ln1b);
+    set(b.Wq, src.Wq); set(b.Wk, src.Wk); set(b.Wv, src.Wv);
+    set(b.Wo, src.Wo); set(b.bo, src.bo);
+    set(b.ln2g, src.ln2g); set(b.ln2b, src.ln2b);
+    set(b.Wf1, src.Wf1); set(b.bf1, src.bf1);
+    set(b.Wf2, src.Wf2); set(b.bf2, src.bf2);
+  }
+  return m;
+}
+
+async function makeCheckpoint(state) {
+  return {
+    schema: 3,
+    createdAt: new Date().toISOString(),
+    backend: state.backendInfo ? state.backendInfo.backend : null,
+    tokenizer: state.tokenizer,
+    config: state.config,
+    vocab: state.vocab,
+    tokenToIdx: state.tokenToIdx,
+    idxToToken: state.idxToToken,
+    model: await tensorsToPlain(state.model),
+    stats: state.stats || {}
+  };
+}
+
+function restoreCheckpoint(checkpoint) {
+  if (checkpoint.schema && checkpoint.schema < 3) {
+    throw new Error('Old checkpoint format (schema ' + checkpoint.schema + ') is not supported by the GPU build.');
+  }
+  return {
+    tokenizer: checkpoint.tokenizer || 'char',
+    config: checkpoint.config || {},
+    vocab: checkpoint.vocab || [],
+    tokenToIdx: checkpoint.tokenToIdx || {},
+    idxToToken: checkpoint.idxToToken || {},
+    model: plainToModel(checkpoint.model),
+    stats: checkpoint.stats || {}
+  };
+}
+
+// =============================================================================
+// STATE + MESSAGING
+// =============================================================================
+var STATE = {
+  backendInfo: null,
+  tokenizer: 'char',
+  config: {},
+  vocab: [],
+  tokenToIdx: {},
+  idxToToken: {},
+  indices: null,
+  text: '',
+  model: null,
+  optimizer: null,
+  training: false,
+  stopRequested: false,
+  stats: { epoch: 0, bestLoss: Infinity, smoothLoss: Infinity, lossHistory: [], start: 0 }
+};
+
+function postStatus(type, payload) {
+  self.postMessage(Object.assign({ type: type }, payload || {}));
+}
+
+function postMemoryUsage() {
+  try {
+    var mem = tf.memory();
+    return { numTensors: mem.numTensors, numBytes: mem.numBytes };
+  } catch (_) { return null; }
+}
+
+function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+// LR schedule: linear warmup, then cosine decay from lrStart to lrEnd
+function lrSchedule(step, totalSteps, warmup, lrStart, lrEnd) {
+  if (warmup > 0 && step < warmup) return lrStart * (step + 1) / warmup;
+  var p = (step - warmup) / Math.max(1, totalSteps - warmup);
+  p = Math.min(1, Math.max(0, p));
+  var cos = 0.5 * (1 + Math.cos(Math.PI * p));
+  return lrEnd + (lrStart - lrEnd) * cos;
+}
+
+// =============================================================================
+// TRAIN
+// =============================================================================
+async function trainAsync(payload) {
+  if (STATE.training) return;
+  if (!STATE.backendInfo) {
+    postStatus('error', { message: 'Backend not initialized.' });
+    return;
+  }
+
+  var text = normalizeText(payload.text || '');
+  var cfg = payload.config || {};
+  var mode = cfg.tokenizer === 'word' ? 'word' : 'char';
+  var vocabData = buildVocabulary(text, mode);
+
+  if (text.length < 8 || vocabData.vocab.length < 2) {
+    postStatus('error', { message: 'Training text is too small to build a model.' });
+    postStatus('done', { reason: 'invalid-data' });
+    return;
+  }
+
+  var blockSize = Math.max(4, Math.min(parseInt(cfg.blockSize, 10) || 24, 512));
+  var nEmbd     = Math.max(8, parseInt(cfg.nEmbd, 10) || 64);
+  var nHeads    = Math.max(1, parseInt(cfg.nHeads, 10) || 4);
+  var nLayers   = Math.max(1, parseInt(cfg.nLayers, 10) || 2);
+
+  // Auto-correct heads to divide nEmbd
+  if (nEmbd % nHeads !== 0) {
+    while (nHeads > 1 && nEmbd % nHeads !== 0) nHeads--;
+    postStatus('log', { level: 'warn', message: 'n_heads adjusted to ' + nHeads + ' to divide n_embd.' });
+  }
+
+  var steps      = Math.max(1, parseInt(cfg.epochs, 10) || 1000);
+  var batch      = Math.max(1, parseInt(cfg.batch, 10) || 8);
+  var lrStart    = Math.max(1e-6, parseFloat(cfg.lr) || 6e-4);
+  var lrEnd      = Math.max(1e-6, parseFloat(cfg.lrEnd) || lrStart);
+  var warmup     = Math.max(0, parseInt(cfg.warmup, 10) || 0);
+  var dropout    = Math.min(0.5, Math.max(0, parseFloat(cfg.dropout) || 0.1));
+  var wd         = Math.max(0, parseFloat(cfg.weightDecay) || 0);
+  var gradClip   = Math.max(0, parseFloat(cfg.gradClip) || 0);
+  var patience   = Math.max(1, parseInt(cfg.patience, 10) || 300);
+  var minDelta   = Math.max(0, parseFloat(cfg.minDelta) || 0.001);
+  var autosaveEnabled = !!cfg.autosave;
+  var autosaveEvery   = Math.max(1, parseInt(cfg.autosaveEvery, 10) || 100);
+  var progressEvery   = Math.max(1, parseInt(cfg.progressEvery, 10) || 10);
+
+  // Free old model/optim
+  if (STATE.model) STATE.model.dispose();
+  if (STATE.optimizer) STATE.optimizer.dispose();
+
+  var model = new MiniGPT(vocabData.vocab.length, blockSize, nEmbd, nHeads, nLayers, dropout);
+  var optimizer = new AdamW(model.trainables(), lrStart, 0.9, 0.95, 1e-8, wd);
+
+  STATE.tokenizer  = mode;
+  STATE.config     = {
+    blockSize: blockSize, nEmbd: nEmbd, nHeads: nHeads, nLayers: nLayers,
+    epochs: steps, batch: batch, lr: lrStart, lrEnd: lrEnd, warmup: warmup,
+    dropout: dropout, weightDecay: wd, gradClip: gradClip,
+    patience: patience, minDelta: minDelta
+  };
+  STATE.vocab      = vocabData.vocab;
+  STATE.tokenToIdx = vocabData.tokenToIdx;
+  STATE.idxToToken = vocabData.idxToToken;
+  STATE.indices    = vocabData.indices;
+  STATE.text       = text;
+  STATE.model      = model;
+  STATE.optimizer  = optimizer;
+  STATE.training   = true;
+  STATE.stopRequested = false;
+  STATE.stats = { epoch: 0, bestLoss: Infinity, smoothLoss: Infinity, lossHistory: [], start: performance.now() };
+
+  postStatus('start', {
+    vocabSize: vocabData.vocab.length,
+    params: model.countParams(),
+    config: STATE.config,
+    tokenizer: mode,
+    backend: STATE.backendInfo
+  });
+
+  var indices = vocabData.indices;
+  var validStarts = Math.max(1, indices.length - blockSize - 1);
+
+  var smooth = Math.log(Math.max(2, vocabData.vocab.length));
+  var best = Infinity;
+  var badCount = 0;
+  var totalSeen = 0;
+  var paramNames = model.trainables().map(function (v) { return v.name; });
+
+  for (var step = 1; step <= steps; step++) {
+    if (STATE.stopRequested) break;
+
+    // Build a mini-batch from random offsets — done synchronously then uploaded once.
+    var inBuf = new Int32Array(batch * blockSize);
+    var tgBuf = new Int32Array(batch * blockSize);
+    for (var bi = 0; bi < batch; bi++) {
+      var start = Math.floor(Math.random() * validStarts);
+      for (var k = 0; k < blockSize; k++) {
+        inBuf[bi * blockSize + k] = indices[start + k];
+        tgBuf[bi * blockSize + k] = indices[start + k + 1];
+      }
+    }
+    var inputs = tf.tensor2d(inBuf, [batch, blockSize], 'int32');
+    var targets = tf.tensor2d(tgBuf, [batch, blockSize], 'int32');
+
+    var lr = lrSchedule(step - 1, steps, warmup, lrStart, lrEnd);
+    optimizer.lr = lr;
+
+    var lossVal;
     try {
-      const db = await openAutosaveDB();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction('state', 'readwrite');
-        tx.objectStore('state').put({ checkpoint, ts: Date.now() }, 'latest');
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error || new Error('Autosave failed'));
-      });
-      appendLog('Autosaved checkpoint.', 'ok');
+      var grads = tf.variableGrads(function () {
+        return model.lossAndLogits(inputs, targets);
+      }, model.trainables());
+      lossVal = (await grads.value.data())[0];
+      grads.value.dispose();
+      optimizer.step(grads.grads, gradClip);
+      // Free per-step grads
+      Object.keys(grads.grads).forEach(function (k) { grads.grads[k].dispose(); });
     } catch (err) {
-      appendLog(`Autosave failed: ${err.message}`, 'warn');
+      inputs.dispose(); targets.dispose();
+      postStatus('error', { message: 'Training step failed: ' + (err.message || err) });
+      break;
     }
-  }
+    inputs.dispose(); targets.dispose();
 
-  async function loadAutosave() {
-    try {
-      const db = await openAutosaveDB();
-      const record = await new Promise((resolve, reject) => {
-        const tx = db.transaction('state', 'readonly');
-        const req = tx.objectStore('state').get('latest');
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error || new Error('Load failed'));
-      });
-      return record && record.checkpoint ? record.checkpoint : null;
-    } catch (err) {
-      appendLog(`Autosave load failed: ${err.message}`, 'warn');
-      return null;
-    }
-  }
+    if (!isFinite(lossVal)) lossVal = smooth;
+    smooth = smooth * 0.95 + lossVal * 0.05;
+    totalSeen += batch * blockSize;
 
-  async function clearAutosave() {
-    try {
-      const db = await openAutosaveDB();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction('state', 'readwrite');
-        tx.objectStore('state').delete('latest');
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error || new Error('Clear failed'));
-      });
-      appendLog('Autosave cleared.', 'ok');
-    } catch (err) {
-      appendLog(`Clear autosave failed: ${err.message}`, 'warn');
-    }
-  }
+    STATE.stats.epoch = step;
+    STATE.stats.smoothLoss = smooth;
+    STATE.stats.lossHistory.push(smooth);
+    if (STATE.stats.lossHistory.length > 600) STATE.stats.lossHistory.shift();
 
-  function updateStatsBox(payload) {
-    if (payload.vocabSize != null) els.sVocab.textContent = String(payload.vocabSize);
-    if (payload.params != null) els.sParams.textContent = fmtNum(payload.params);
-    if (payload.epoch != null) els.sEpoch.textContent = String(payload.epoch);
-    if (payload.loss != null) els.sLoss.textContent = Number.isFinite(payload.loss) ? payload.loss.toFixed(4) : '--';
-    if (payload.bestLoss != null) els.sBest.textContent = Number.isFinite(payload.bestLoss) ? payload.bestLoss.toFixed(4) : '--';
-    if (payload.speed != null) els.sSpeed.textContent = Number.isFinite(payload.speed) ? payload.speed.toFixed(1) + ' tok/s' : '--';
-    if (payload.elapsed != null) els.sTime.textContent = fmtTime(payload.elapsed);
-    if (payload.lossHistory) {
-      lossHist = payload.lossHistory.slice();
-      drawLossGraph(lossHist);
-    }
-    const progress = payload.epochs ? (payload.epoch / payload.epochs) * 100 : 0;
-    els.pbar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
-    // Memory is refreshed separately so this box can stay honest.
-
-  }
-
-  function refreshMemory() {
-    if (performance && performance.memory && performance.memory.usedJSHeapSize) {
-      els.sMem.textContent = (performance.memory.usedJSHeapSize / (1024 * 1024)).toFixed(1) + ' MB';
+    if (smooth < best - minDelta) {
+      best = smooth;
+      badCount = 0;
+      STATE.stats.bestLoss = best;
     } else {
-      els.sMem.textContent = '--';
+      badCount++;
     }
-  }
 
-  function getSeedFallback() {
-    const data = normalizeText(els.data.value);
-    const mode = els.tokenizer.value;
-    const tokens = mode === 'word' ? (data.match(/\s+|[^\s]+/g) || []) : data.split('');
-    for (let i = 0; i < tokens.length; i++) {
-      if (String(tokens[i]).trim().length) return tokens[i];
-    }
-    return data.slice(0, 8) || '';
-  }
-
-  async function startTraining() {
-    const text = normalizeText(els.data.value);
-    const cfg = readConfig();
-    if (!text.trim()) {
-      appendLog('Training text is empty.', 'warn');
-      return;
-    }
-    const tier = getDeviceTier();
-    const score = estimateLoad(cfg);
-    const risk = getRiskLevel(score, tier);
-    if (risk === 'danger' && !confirm('These settings are very heavy for this device. Continue anyway?')) return;
-    if (risk === 'warning' && !confirm('These settings may lag or freeze. Continue?')) return;
-
-    busy = true;
-    lossHist = [];
-    drawLossGraph(lossHist);
-    els.btnTrain.disabled = true;
-    els.btnStop.disabled = false;
-    els.btnGen.disabled = true;
-    setStatus('Training', 'warn');
-    appendLog(`Training started · tokenizer=${cfg.tokenizer} · risk=${risk}`, 'info');
-
-    const stats = countTextStats(text);
-    els.datasetInfo.textContent = `${stats.chars} chars · ${stats.words} words · ${cfg.tokenizer}`;
-
-    postToWorker({ type: 'train', text, config: cfg });
-  }
-
-  function stopTraining() {
-    postToWorker({ type: 'stop' });
-    appendLog('Stop requested.', 'warn');
-  }
-
-  function resetUIOnly() {
-    lossHist = [];
-    drawLossGraph(lossHist);
-    els.output.textContent = '-- train the model first --';
-    els.output.classList.add('empty');
-    els.sEpoch.textContent = '0';
-    els.sLoss.textContent = '--';
-    els.sBest.textContent = '--';
-    els.sSpeed.textContent = '--';
-    els.sTime.textContent = '--';
-    els.sParams.textContent = '--';
-    els.sVocab.textContent = '--';
-    els.pbar.style.width = '0%';
-    setStatus('Ready', 'safe');
-  }
-
-  function resetAll() {
-    stopTraining();
-    busy = false;
-    postToWorker({ type: 'reset' });
-    resetUIOnly();
-    appendLog('Model reset.', 'warn');
-    els.btnTrain.disabled = false;
-    els.btnStop.disabled = true;
-    els.btnGen.disabled = true;
-  }
-
-  async function generateText() {
-    const seed = els.seed.value.trim() || getSeedFallback();
-    const cfg = readConfig();
-    const len = Math.max(1, parseInt(els.genLen.value, 10) || 150);
-    if (busy) {
-      appendLog('Wait until training ends or stop it first.', 'warn');
-      return;
-    }
-    setStatus('Generating', 'warn');
-    try {
-      const result = await requestWorker('generate', {
-        seed,
-        length: len,
-        temp: safeNumber(els.tempR.value, 0.8),
-        topK: cfg.topK,
-        topP: cfg.topP
+    if (step % progressEvery === 0 || step === 1 || step === steps) {
+      var elapsed = (performance.now() - STATE.stats.start) / 1000;
+      var speed = elapsed > 0 ? totalSeen / elapsed : 0;
+      postStatus('progress', {
+        epoch: step, epochs: steps,
+        loss: smooth, bestLoss: best,
+        lr: lr, speed: speed, elapsed: elapsed,
+        lossHistory: STATE.stats.lossHistory.slice(-200),
+        memory: postMemoryUsage()
       });
-      els.output.classList.remove('empty');
-      els.output.textContent = result.result || result;
-      appendLog(`Generated ${String((result.result || result).length)} chars.`, 'ok');
-      setStatus('Ready', 'safe');
-    } catch (err) {
-      appendLog(`Generation failed: ${err.message}`, 'error');
-      setStatus('Error', 'danger');
     }
+
+    if (autosaveEnabled && step % autosaveEvery === 0) {
+      var ckpt = await makeCheckpoint(STATE);
+      postStatus('autosave', { checkpoint: ckpt });
+    }
+
+    if (badCount >= patience) {
+      postStatus('log', { level: 'warn', message: 'Early stopping triggered at step ' + step + '.' });
+      break;
+    }
+
+    // Yield to keep the worker responsive (await already gives a microtask boundary).
+    if (step % 4 === 0) await sleep(0);
   }
 
-  async function exportModel() {
-    try {
-      const payload = await requestWorker('export', {});
-      const checkpoint = payload.checkpoint;
-      if (!checkpoint) throw new Error('No checkpoint returned.');
-      lastCheckpoint = checkpoint;
-      const blob = new Blob([JSON.stringify(checkpoint, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `gptjs-checkpoint-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      appendLog('Model exported.', 'ok');
-      if (els.autosave.checked) await saveAutosave(checkpoint);
-    } catch (err) {
-      appendLog(`Export failed: ${err.message}`, 'error');
-    }
+  STATE.training = false;
+  var reason = STATE.stopRequested ? 'stopped' : 'finished';
+  var checkpoint = await makeCheckpoint(STATE);
+  postStatus('done', {
+    reason: reason,
+    checkpoint: checkpoint,
+    epoch: STATE.stats.epoch,
+    bestLoss: STATE.stats.bestLoss,
+    loss: STATE.stats.smoothLoss
+  });
+}
+
+// =============================================================================
+// GENERATE
+// =============================================================================
+async function generateAsync(msg) {
+  if (!STATE.model) {
+    postStatus('error', { id: msg.id, message: 'No model loaded.' });
+    return;
+  }
+  var temp = typeof msg.temp === 'number' ? Math.max(0.05, msg.temp) : 1.0;
+  var topK = typeof msg.topK === 'number' ? msg.topK : 0;
+  var topP = typeof msg.topP === 'number' ? msg.topP : 1.0;
+  var maxNew = Math.max(1, parseInt(msg.length, 10) || 100);
+  var seedStr = msg.seed || '';
+
+  var mode = STATE.tokenizer || 'char';
+  var seedTokens = tokenizeText(seedStr, mode);
+  var ctx = [];
+  for (var i = 0; i < seedTokens.length; i++) {
+    ctx.push(STATE.tokenToIdx[seedTokens[i]] != null ? STATE.tokenToIdx[seedTokens[i]] : 0);
+  }
+  if (!ctx.length) ctx.push(0);
+
+  var Tmax = STATE.model.T;
+  var resultTokens = seedTokens.slice();
+
+  for (var n = 0; n < maxNew; n++) {
+    var trimmed = ctx.length > Tmax ? ctx.slice(ctx.length - Tmax) : ctx.slice();
+    var pad = Tmax - trimmed.length;
+    var padded = new Int32Array(Tmax);
+    for (var p = 0; p < pad; p++) padded[p] = 0;
+    for (var q = 0; q < trimmed.length; q++) padded[pad + q] = trimmed[q];
+
+    var lastIdx = Tmax - 1;
+    var probsArr = await tf.tidy(function () {
+      var input = tf.tensor2d(padded, [1, Tmax], 'int32');
+      var logits = STATE.model.forward(input, false);   // [1, T, V]
+      var lastLogits = logits.slice([0, lastIdx, 0], [1, 1, STATE.model.V]).reshape([STATE.model.V]);
+      var scaled = lastLogits.div(temp);
+      var probs = tf.softmax(scaled);
+      return probs.array();
+    });
+
+    var next = sampleFromDistribution(probsArr, topK, topP);
+    ctx.push(next);
+    resultTokens.push(STATE.idxToToken[next]);
   }
 
-  async function importModelFromFile(file) {
-    const text = await file.text();
-    const checkpoint = JSON.parse(text);
-    await requestWorker('import', { checkpoint });
-    lastCheckpoint = checkpoint;
-    if (checkpoint.config) setConfig(checkpoint.config);
-    if (checkpoint.vocab && checkpoint.vocab.length) els.sVocab.textContent = String(checkpoint.vocab.length);
-    if (checkpoint.model && checkpoint.model.V != null) els.sParams.textContent = fmtNum(checkpoint.model ? (checkpoint.model.V || 0) : 0);
-    els.btnGen.disabled = false;
-    appendLog('Model imported.', 'ok');
-    setStatus('Ready', 'safe');
-  }
+  postStatus('generated', { id: msg.id, result: detokenizeText(resultTokens) });
+}
 
-  async function restoreAutosaveToWorker() {
-    const checkpoint = await loadAutosave();
-    if (!checkpoint) {
-      appendLog('No autosave found.', 'warn');
+// =============================================================================
+// MESSAGES
+// =============================================================================
+self.onmessage = async function (e) {
+  var msg = e.data || {};
+  try {
+    if (msg.type === 'init') {
+      var info = await initGPUBackend();
+      STATE.backendInfo = info;
+      postStatus('ready', { backend: info, memory: postMemoryUsage() });
       return;
     }
-    await requestWorker('import', { checkpoint });
-    lastCheckpoint = checkpoint;
-    if (checkpoint.config) setConfig(checkpoint.config);
-    if (checkpoint.vocab) els.sVocab.textContent = String(checkpoint.vocab.length);
-    els.btnGen.disabled = false;
-    appendLog('Autosave restored.', 'ok');
-  }
-
-  async function clearModel() {
-    busy = false;
-    lastCheckpoint = null;
-    await requestWorker('reset', {});
-    resetUIOnly();
-    els.btnGen.disabled = true;
-    appendLog('Model cleared.', 'warn');
-  }
-
-  function onWorkerMessage(event) {
-    const msg = event.data || {};
-    if (msg.type === 'start') {
-      busy = true;
-      if (msg.vocabSize != null) els.sVocab.textContent = String(msg.vocabSize);
-      if (msg.params != null) els.sParams.textContent = fmtNum(msg.params);
-      setStatus('Training', 'warn');
+    if (msg.type === 'train') {
+      await trainAsync(msg);
       return;
     }
-    if (msg.type === 'progress') {
-      updateStatsBox(msg);
+    if (msg.type === 'stop') {
+      STATE.stopRequested = true;
       return;
     }
-    if (msg.type === 'autosave') {
-      lastCheckpoint = msg.checkpoint || lastCheckpoint;
-      if (msg.checkpoint && els.autosave.checked) saveAutosave(msg.checkpoint);
+    if (msg.type === 'generate') {
+      await generateAsync(msg);
       return;
     }
-    if (msg.type === 'done') {
-      busy = false;
-      els.btnTrain.disabled = false;
-      els.btnStop.disabled = true;
-      els.btnGen.disabled = false;
-      if (msg.checkpoint) {
-        lastCheckpoint = msg.checkpoint;
-        if (els.autosave.checked) saveAutosave(msg.checkpoint);
-      }
-      if (Number.isFinite(msg.epoch)) els.sEpoch.textContent = String(msg.epoch);
-      if (Number.isFinite(msg.bestLoss)) els.sBest.textContent = msg.bestLoss.toFixed(4);
-      if (Number.isFinite(msg.loss)) els.sLoss.textContent = msg.loss.toFixed(4);
-      setStatus(msg.reason === 'stopped' ? 'Stopped' : 'Ready', msg.reason === 'stopped' ? 'neutral' : 'safe');
-      appendLog(`Training ${msg.reason}.`, msg.reason === 'stopped' ? 'warn' : 'ok');
+    if (msg.type === 'export') {
+      if (!STATE.model) { postStatus('error', { id: msg.id, message: 'Nothing to export.' }); return; }
+      var c = await makeCheckpoint(STATE);
+      postStatus('exported', { id: msg.id, checkpoint: c });
       return;
     }
-    if (msg.type === 'generated' || msg.type === 'exported' || msg.type === 'imported') {
-      const req = pending.get(msg.id);
-      if (req) {
-        pending.delete(msg.id);
-        req.resolve(msg);
-      }
-      if (msg.type === 'imported') {
-        if (msg.params != null) els.sParams.textContent = fmtNum(msg.params);
-        if (msg.vocabSize != null) els.sVocab.textContent = String(msg.vocabSize);
-        els.btnGen.disabled = false;
-      }
+    if (msg.type === 'import') {
+      var restored = restoreCheckpoint(msg.checkpoint);
+      if (STATE.model) STATE.model.dispose();
+      if (STATE.optimizer) { STATE.optimizer.dispose(); STATE.optimizer = null; }
+      STATE.tokenizer = restored.tokenizer;
+      STATE.config = restored.config;
+      STATE.vocab = restored.vocab;
+      STATE.tokenToIdx = restored.tokenToIdx;
+      STATE.idxToToken = restored.idxToToken;
+      STATE.model = restored.model;
+      postStatus('imported', { id: msg.id, vocabSize: STATE.vocab.length, params: STATE.model.countParams() });
       return;
     }
     if (msg.type === 'reset') {
-      setStatus('Ready', 'safe');
+      if (STATE.model) STATE.model.dispose();
+      if (STATE.optimizer) STATE.optimizer.dispose();
+      STATE.model = null;
+      STATE.optimizer = null;
+      STATE.indices = null;
+      STATE.text = '';
+      STATE.vocab = [];
+      STATE.tokenToIdx = {};
+      STATE.idxToToken = {};
+      STATE.training = false;
+      STATE.stopRequested = false;
+      STATE.stats = { epoch: 0, bestLoss: Infinity, smoothLoss: Infinity, lossHistory: [], start: 0 };
+      postStatus('reset', { memory: postMemoryUsage() });
       return;
     }
-    if (msg.type === 'log') {
-      appendLog(msg.message, msg.level || 'info');
-      return;
-    }
-    if (msg.type === 'error') {
-      const req = pending.get(msg.id);
-      if (req) {
-        pending.delete(msg.id);
-        req.reject(new Error(msg.message || 'Worker error'));
-        return;
-      }
-      busy = false;
-      els.btnTrain.disabled = false;
-      els.btnStop.disabled = true;
-      els.btnGen.disabled = false;
-      setStatus('Error', 'danger');
-      appendLog(msg.message || 'Worker error', 'error');
-    }
+  } catch (err) {
+    postStatus('error', { id: msg.id, message: (err && err.message) ? err.message : String(err) });
   }
+};
+`;
 
-  function setupFileUpload() {
-    const input = els.txtFile;
-    const zone = els.dropZone;
-    const name = els.fileName;
+  // ===========================================================================
+  // MAIN THREAD UI — single clean copy (no duplicates)
+  // ===========================================================================
+  (function () {
+    'use strict';
 
-    function loadFile(file) {
-      if (!file) return;
-      if (!/\.txt$/i.test(file.name) && file.type !== 'text/plain') {
-        appendLog('Only .txt files are supported.', 'warn');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = String(reader.result || '');
-        els.data.value = text;
-        name.textContent = file.name;
-        updateSafetyUI();
-        saveSettingsDebounced();
-        appendLog(`Loaded ${file.name}.`, 'ok');
+    const ids = [
+      'data','dropZone','txtFile','fileName','btnTrain','btnStop','btnReset','btnGen',
+      'btnExportModel','btnImportModel','btnClearModel','modelFile','btnLoadAutosave',
+      'btnClearAutosave','btnApplySafe','btnSafePreset','btnBalancedPreset','btnMaxPreset',
+      'blockSize','nEmbd','nHeads','nLayers','epochs','batch','lr','lrEnd','dropout',
+      'warmup','weightDecay','gradClip',
+      'tokenizer','topK','topP','genLen','tempR','tempV','seed','patience','minDelta',
+      'autosave','autosaveEvery','sVocab','sParams','sEpoch','sLoss','sBest','sSpeed',
+      'sTime','sMem','sBackend','sDevice','sRisk','sRecommend','sTokenCount','pbar','cvs',
+      'output','log','statusPill','datasetInfo','sectionSafety'
+    ];
+    const els = {};
+    ids.forEach(id => els[id] = document.getElementById(id));
+
+    let worker = null;
+    let busy = false;
+    let backendInfo = null;
+    let currentRequestId = 0;
+    const pending = new Map();
+    let lossHist = [];
+    let settingsTimer = null;
+    let autosaveDB = null;
+    let lastCheckpoint = null;
+
+    // ----- Utils -----
+    function safeNumber(value, fallback) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fallback;
+    }
+    function fmtNum(n) {
+      if (!Number.isFinite(n)) return '--';
+      if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+      if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+      if (n >= 1e3) return (n / 1e3).toFixed(1) + 'k';
+      return String(Math.round(n));
+    }
+    function fmtBytes(n) {
+      if (!Number.isFinite(n)) return '--';
+      if (n >= 1024 * 1024 * 1024) return (n / (1024 ** 3)).toFixed(2) + ' GB';
+      if (n >= 1024 * 1024) return (n / (1024 ** 2)).toFixed(1) + ' MB';
+      if (n >= 1024) return (n / 1024).toFixed(1) + ' kB';
+      return n + ' B';
+    }
+    function fmtTime(sec) {
+      if (!Number.isFinite(sec) || sec < 0) return '--';
+      if (sec < 60) return sec.toFixed(1) + 's';
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}m ${s}s`;
+    }
+    function appendLog(message, kind = 'info') {
+      const log = els.log;
+      const line = document.createElement('div');
+      line.className = `log-line ${kind}`;
+      line.textContent = message;
+      log.appendChild(line);
+      while (log.children.length > 120) log.removeChild(log.firstChild);
+      log.scrollTop = log.scrollHeight;
+    }
+    function setStatus(text, kind = 'neutral') {
+      els.statusPill.textContent = text;
+      els.statusPill.dataset.kind = kind;
+    }
+    function normalizeText(text) {
+      return String(text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    }
+    function countTextStats(text) {
+      const normalized = normalizeText(text);
+      const chars = normalized.length;
+      const lines = normalized ? normalized.split('\n').length : 0;
+      const words = normalized.trim() ? normalized.trim().split(/\s+/).length : 0;
+      return { chars, lines, words };
+    }
+
+    // ----- Device / safety heuristics -----
+    function getDeviceTier() {
+      const mem = navigator.deviceMemory || 4;
+      const cores = navigator.hardwareConcurrency || 4;
+      const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+      if (mobile || mem <= 4 || cores <= 4) return 'low';
+      if (mem <= 8 || cores <= 8) return 'mid';
+      return 'high';
+    }
+    function estimateLoad(cfg) {
+      const blockSize = Math.max(4, safeNumber(cfg.blockSize, 24));
+      const nEmbd = Math.max(8, safeNumber(cfg.nEmbd, 64));
+      const nHeads = Math.max(1, safeNumber(cfg.nHeads, 4));
+      const nLayers = Math.max(1, safeNumber(cfg.nLayers, 2));
+      const batch = Math.max(1, safeNumber(cfg.batch, 8));
+      const tokenizer = cfg.tokenizer || 'char';
+      const tokenFactor = tokenizer === 'word' ? 1.2 : 1.0;
+      return blockSize * blockSize * nEmbd * nLayers * batch * tokenFactor / Math.max(1, nHeads);
+    }
+    function getRiskLevel(score, tier) {
+      const limits = {
+        low:  [4e6, 1.5e7],
+        mid:  [1.5e7, 5e7],
+        high: [5e7, 1.5e8]
       };
-      reader.readAsText(file);
+      const [safe, warn] = limits[tier];
+      if (score <= safe) return 'safe';
+      if (score <= warn) return 'warning';
+      return 'danger';
     }
-
-    input.addEventListener('change', () => loadFile(input.files && input.files[0]));
-    zone.addEventListener('click', () => input.click());
-    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-    zone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      zone.classList.remove('dragover');
-      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      loadFile(file);
-    });
-  }
-
-  function syncRangeFill(input) {
-    const min = Number(input.min || 0);
-    const max = Number(input.max || 100);
-    const value = Number(input.value || min);
-    const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
-    input.style.setProperty('--fill', `${pct}%`);
-    input.setAttribute('aria-valuenow', String(value));
-  }
-
-  function initTempControl() {
-    els.tempV.textContent = Number(els.tempR.value).toFixed(1);
-    syncRangeFill(els.tempR);
-    els.tempR.addEventListener('input', () => {
-      els.tempV.textContent = Number(els.tempR.value).toFixed(1);
-      syncRangeFill(els.tempR);
+    function recommendedPreset(tier) {
+      if (tier === 'low') return {
+        blockSize: 48, nEmbd: 96, nHeads: 4, nLayers: 3, batch: 8, epochs: 2000,
+        lr: 0.0007, lrEnd: 0.00015, warmup: 100, weightDecay: 0.1, gradClip: 1.0, dropout: 0.1
+      };
+      if (tier === 'mid') return {
+        blockSize: 64, nEmbd: 128, nHeads: 8, nLayers: 4, batch: 16, epochs: 3000,
+        lr: 0.0006, lrEnd: 0.0001, warmup: 100, weightDecay: 0.1, gradClip: 1.0, dropout: 0.1
+      };
+      return {
+        blockSize: 128, nEmbd: 256, nHeads: 8, nLayers: 6, batch: 24, epochs: 5000,
+        lr: 0.0004, lrEnd: 0.00008, warmup: 200, weightDecay: 0.1, gradClip: 1.0, dropout: 0.1
+      };
+    }
+    function applyPreset(preset) {
+      const values = typeof preset === 'string' ? recommendedPreset(preset) : preset;
+      if (!values) return;
+      const fields = ['blockSize','nEmbd','nHeads','nLayers','batch','epochs','lr','lrEnd','dropout','warmup','weightDecay','gradClip'];
+      fields.forEach(k => { if (values[k] != null && els[k]) els[k].value = values[k]; });
+      updateSafetyUI();
       saveSettingsDebounced();
-    });
-  }
+    }
 
-  function updateSafetyUI() {
-    const cfg = readConfig();
-    const tier = getDeviceTier();
-    const score = estimateLoad(cfg);
-    const risk = getRiskLevel(score, tier);
-    const rec = recommendedPreset(tier);
-
-    els.sDevice.textContent = `${tier.toUpperCase()} · ${navigator.hardwareConcurrency || '?'} cores · ${navigator.deviceMemory || '?'} GB`;
-    els.sRisk.textContent = risk.toUpperCase();
-    els.sRisk.dataset.kind = risk;
-    els.sRecommend.textContent = `Suggested: ctx ${rec.blockSize}, embd ${rec.nEmbd}, heads ${rec.nHeads}, layers ${rec.nLayers}, batch ${rec.batch}`;
-    els.datasetInfo.textContent = `${countTextStats(els.data.value).chars} chars · ${countTextStats(els.data.value).words} words · load ${fmtNum(score)}`;
-    els.sTokenCount.textContent = cfg.tokenizer;
-  }
-
-  function bindEvents() {
-    els.btnTrain.addEventListener('click', startTraining);
-    els.btnStop.addEventListener('click', stopTraining);
-    els.btnReset.addEventListener('click', resetAll);
-    els.btnGen.addEventListener('click', generateText);
-    els.btnExportModel.addEventListener('click', exportModel);
-    els.btnImportModel.addEventListener('click', () => els.modelFile.click());
-    els.btnClearModel.addEventListener('click', clearModel);
-    els.btnLoadAutosave.addEventListener('click', restoreAutosaveToWorker);
-    els.btnClearAutosave.addEventListener('click', clearAutosave);
-    els.btnApplySafe.addEventListener('click', () => applyPreset(recommendedPreset(getDeviceTier())));
-    els.btnSafePreset.addEventListener('click', () => applyPreset('low'));
-    els.btnBalancedPreset.addEventListener('click', () => applyPreset('mid'));
-    els.btnMaxPreset.addEventListener('click', () => applyPreset('high'));
-    els.modelFile.addEventListener('change', async () => {
-      const file = els.modelFile.files && els.modelFile.files[0];
-      if (!file) return;
-      try {
-        await importModelFromFile(file);
-      } catch (err) {
-        appendLog(`Import failed: ${err.message}`, 'error');
-      } finally {
-        els.modelFile.value = '';
-      }
-    });
-
-    const watched = ['blockSize','nEmbd','nHeads','nLayers','epochs','batch','lr','lrEnd','dropout','tokenizer','topK','topP','seed','genLen','tempR','patience','minDelta','autosave','autosaveEvery','data'];
-    watched.forEach(id => {
-      const el = els[id];
-      const evt = id === 'data' ? 'input' : (el.type === 'checkbox' || el.tagName === 'SELECT' || el.type === 'range' ? 'change' : 'input');
-      el.addEventListener(evt, () => {
-        if (id === 'tempR') { els.tempV.textContent = Number(els.tempR.value).toFixed(1); syncRangeFill(els.tempR); }
-        updateSafetyUI();
-        saveSettingsDebounced();
-      });
-    });
-
-    window.addEventListener('resize', () => drawLossGraph(lossHist));
-  }
-
-  async function openAutosaveDB() {
-    if (autosaveDB) return autosaveDB;
-    autosaveDB = await new Promise((resolve, reject) => {
-      const req = indexedDB.open('gptjs-db', 1);
-      req.onupgradeneeded = () => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains('state')) db.createObjectStore('state');
+    // ----- Config <-> UI -----
+    function readConfig() {
+      return {
+        blockSize: parseInt(els.blockSize.value, 10) || 24,
+        nEmbd: parseInt(els.nEmbd.value, 10) || 64,
+        nHeads: parseInt(els.nHeads.value, 10) || 4,
+        nLayers: parseInt(els.nLayers.value, 10) || 2,
+        epochs: parseInt(els.epochs.value, 10) || 1000,
+        batch: parseInt(els.batch.value, 10) || 8,
+        lr: parseFloat(els.lr.value) || 0.0006,
+        lrEnd: parseFloat(els.lrEnd.value) || 0.0001,
+        warmup: parseInt(els.warmup.value, 10) || 0,
+        weightDecay: parseFloat(els.weightDecay.value) || 0,
+        gradClip: parseFloat(els.gradClip.value) || 0,
+        dropout: parseFloat(els.dropout.value) || 0.1,
+        tokenizer: els.tokenizer.value,
+        topK: parseInt(els.topK.value, 10) || 0,
+        topP: Math.min(1, Math.max(0.1, parseFloat(els.topP.value) || 0.95)),
+        patience: parseInt(els.patience.value, 10) || 400,
+        minDelta: parseFloat(els.minDelta.value) || 0.001,
+        autosave: !!els.autosave.checked,
+        autosaveEvery: parseInt(els.autosaveEvery.value, 10) || 100,
+        progressEvery: 10
       };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error || new Error('IndexedDB error'));
-    });
-    return autosaveDB;
-  }
-
-  async function saveAutosave(checkpoint) {
-    if (!els.autosave.checked || !checkpoint) return;
-    try {
-      const db = await openAutosaveDB();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction('state', 'readwrite');
-        tx.objectStore('state').put({ checkpoint, ts: Date.now() }, 'latest');
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error || new Error('Autosave failed'));
-      });
-      appendLog('Autosaved checkpoint.', 'ok');
-    } catch (err) {
-      appendLog(`Autosave failed: ${err.message}`, 'warn');
     }
-  }
-
-  async function loadAutosave() {
-    try {
-      const db = await openAutosaveDB();
-      const record = await new Promise((resolve, reject) => {
-        const tx = db.transaction('state', 'readonly');
-        const req = tx.objectStore('state').get('latest');
-        req.onsuccess = () => resolve(req.result || null);
-        req.onerror = () => reject(req.error || new Error('Load failed'));
-      });
-      return record && record.checkpoint ? record.checkpoint : null;
-    } catch (err) {
-      appendLog(`Autosave load failed: ${err.message}`, 'warn');
-      return null;
+    function setConfig(cfg) {
+      if (!cfg) return;
+      const fields = ['blockSize','nEmbd','nHeads','nLayers','epochs','batch','lr','lrEnd',
+                      'warmup','weightDecay','gradClip','dropout','tokenizer','topK','topP',
+                      'patience','minDelta','autosaveEvery'];
+      fields.forEach(k => { if (cfg[k] != null && els[k]) els[k].value = cfg[k]; });
+      if (cfg.autosave != null) els.autosave.checked = !!cfg.autosave;
+      if (cfg.seed != null) els.seed.value = cfg.seed;
+      if (cfg.genLen != null) els.genLen.value = cfg.genLen;
+      if (cfg.temp != null) {
+        els.tempR.value = cfg.temp;
+        els.tempV.textContent = Number(cfg.temp).toFixed(1);
+      }
+      updateSafetyUI();
+      saveSettingsDebounced();
     }
-  }
 
-  async function clearAutosave() {
-    try {
-      const db = await openAutosaveDB();
-      await new Promise((resolve, reject) => {
-        const tx = db.transaction('state', 'readwrite');
-        tx.objectStore('state').delete('latest');
-        tx.oncomplete = () => resolve();
-        tx.onerror = () => reject(tx.error || new Error('Clear failed'));
-      });
-      appendLog('Autosave cleared.', 'ok');
-    } catch (err) {
-      appendLog(`Clear autosave failed: ${err.message}`, 'warn');
+    // ----- Loss graph -----
+    function drawLossGraph(hist) {
+      const canvas = els.cvs;
+      const ctx = canvas.getContext('2d');
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      const width = Math.max(1, Math.floor(rect.width * dpr));
+      const height = Math.max(160, Math.floor(rect.height * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      ctx.clearRect(0, 0, width, height);
+      if (!hist || hist.length < 2) {
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.font = `${12 * dpr}px ui-sans-serif, system-ui`;
+        ctx.fillText('Loss plot appears here after training starts.', 16 * dpr, 24 * dpr);
+        return;
+      }
+      let min = hist[0], max = hist[0];
+      for (let i = 1; i < hist.length; i++) {
+        if (hist[i] < min) min = hist[i];
+        if (hist[i] > max) max = hist[i];
+      }
+      const pad = 18 * dpr;
+      const range = (max - min) || 1;
+      ctx.beginPath();
+      for (let i = 0; i < hist.length; i++) {
+        const x = pad + (i / (hist.length - 1)) * (width - pad * 2);
+        const y = pad + (1 - (hist[i] - min) / range) * (height - pad * 2);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.lineWidth = 2 * dpr;
+      ctx.strokeStyle = 'rgba(124, 192, 255, 0.95)';
+      ctx.stroke();
+
+      ctx.fillStyle = 'rgba(255,255,255,0.38)';
+      ctx.font = `${11 * dpr}px ui-sans-serif, system-ui`;
+      ctx.fillText(`loss ${hist[hist.length - 1].toFixed(4)}`, pad, pad - 4);
+      const minLabel = `min ${min.toFixed(4)}`;
+      ctx.fillText(minLabel, width - pad - ctx.measureText(minLabel).width, height - 10);
     }
-  }
 
-  function ensureWorker() {
-    if (worker) return worker;
-    const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
-    const url = URL.createObjectURL(blob);
-    worker = new Worker(url);
-    worker.onmessage = onWorkerMessage;
-    worker.onerror = (err) => {
-      busy = false;
-      setStatus('Worker error', 'danger');
-      appendLog(err.message || 'Worker error', 'error');
-      console.error(err);
-    };
-    setStatus('Ready', 'safe');
-    return worker;
-  }
-
-  function postToWorker(msg) {
-    ensureWorker();
-    worker.postMessage(msg);
-  }
-
-  function requestWorker(type, payload = {}) {
-    return new Promise((resolve, reject) => {
-      const id = ++currentRequestId;
-      pending.set(id, { resolve, reject });
-      postToWorker(Object.assign({ type, id }, payload));
-      setTimeout(() => {
-        if (pending.has(id)) {
-          pending.delete(id);
-          reject(new Error('Worker request timed out.'));
-        }
-      }, 120000);
-    });
-  }
-
-  function refreshMemory() {
-    if (performance && performance.memory && performance.memory.usedJSHeapSize) {
-      els.sMem.textContent = (performance.memory.usedJSHeapSize / (1024 * 1024)).toFixed(1) + ' MB';
-    } else {
-      els.sMem.textContent = '--';
+    // ----- Settings persistence -----
+    function saveSettingsDebounced() {
+      clearTimeout(settingsTimer);
+      settingsTimer = setTimeout(saveSettings, 250);
     }
-  }
-
-  function getSeedFallback() {
-    const data = normalizeText(els.data.value);
-    const mode = els.tokenizer.value;
-    const tokens = mode === 'word' ? (data.match(/\s+|[^\s]+/g) || []) : data.split('');
-    for (let i = 0; i < tokens.length; i++) {
-      if (String(tokens[i]).trim().length) return tokens[i];
+    function saveSettings() {
+      const payload = {
+        blockSize: els.blockSize.value, nEmbd: els.nEmbd.value, nHeads: els.nHeads.value,
+        nLayers: els.nLayers.value, epochs: els.epochs.value, batch: els.batch.value,
+        lr: els.lr.value, lrEnd: els.lrEnd.value, warmup: els.warmup.value,
+        weightDecay: els.weightDecay.value, gradClip: els.gradClip.value,
+        dropout: els.dropout.value, tokenizer: els.tokenizer.value,
+        topK: els.topK.value, topP: els.topP.value, seed: els.seed.value,
+        genLen: els.genLen.value, temp: els.tempR.value,
+        patience: els.patience.value, minDelta: els.minDelta.value,
+        autosave: els.autosave.checked, autosaveEvery: els.autosaveEvery.value,
+        data: els.data.value
+      };
+      try { localStorage.setItem('gptjs.settings', JSON.stringify(payload)); } catch (_) {}
     }
-    return data.slice(0, 8) || '';
-  }
-
-  async function startTraining() {
-    const text = normalizeText(els.data.value);
-    const cfg = readConfig();
-    if (!text.trim()) {
-      appendLog('Training text is empty.', 'warn');
-      return;
+    function loadSettings() {
+      try {
+        const raw = localStorage.getItem('gptjs.settings');
+        if (!raw) return;
+        const cfg = JSON.parse(raw);
+        if (!cfg || typeof cfg !== 'object') return;
+        setConfig(cfg);
+        if (typeof cfg.data === 'string' && cfg.data.trim()) els.data.value = cfg.data;
+        updateSafetyUI();
+      } catch (_) {}
     }
-    const tier = getDeviceTier();
-    const score = estimateLoad(cfg);
-    const risk = getRiskLevel(score, tier);
-    if (risk === 'danger' && !confirm('These settings are very heavy for this device. Continue anyway?')) return;
-    if (risk === 'warning' && !confirm('These settings may lag or freeze. Continue?')) return;
 
-    busy = true;
-    lossHist = [];
-    drawLossGraph(lossHist);
-    els.btnTrain.disabled = true;
-    els.btnStop.disabled = false;
-    els.btnGen.disabled = true;
-    setStatus('Training', 'warn');
-    appendLog(`Training started · tokenizer=${cfg.tokenizer} · risk=${risk}`, 'info');
-    const stats = countTextStats(text);
-    els.datasetInfo.textContent = `${stats.chars} chars · ${stats.words} words · ${cfg.tokenizer}`;
-    postToWorker({ type: 'train', text, config: cfg });
-  }
-
-  function stopTraining() {
-    postToWorker({ type: 'stop' });
-    appendLog('Stop requested.', 'warn');
-  }
-
-  function resetUIOnly() {
-    lossHist = [];
-    drawLossGraph(lossHist);
-    els.output.textContent = '-- train the model first --';
-    els.output.classList.add('empty');
-    els.sEpoch.textContent = '0';
-    els.sLoss.textContent = '--';
-    els.sBest.textContent = '--';
-    els.sSpeed.textContent = '--';
-    els.sTime.textContent = '--';
-    els.sParams.textContent = '--';
-    els.sVocab.textContent = '--';
-    els.pbar.style.width = '0%';
-    setStatus('Ready', 'safe');
-  }
-
-  function resetAll() {
-    stopTraining();
-    busy = false;
-    postToWorker({ type: 'reset' });
-    resetUIOnly();
-    appendLog('Model reset.', 'warn');
-    els.btnTrain.disabled = false;
-    els.btnStop.disabled = true;
-    els.btnGen.disabled = true;
-  }
-
-  async function generateText() {
-    const seed = els.seed.value.trim() || getSeedFallback();
-    const cfg = readConfig();
-    const len = Math.max(1, parseInt(els.genLen.value, 10) || 150);
-    if (busy) {
-      appendLog('Wait until training ends or stop it first.', 'warn');
-      return;
-    }
-    setStatus('Generating', 'warn');
-    try {
-      const result = await requestWorker('generate', {
-        seed,
-        length: len,
-        temp: safeNumber(els.tempR.value, 0.8),
-        topK: cfg.topK,
-        topP: cfg.topP
-      });
-      els.output.classList.remove('empty');
-      els.output.textContent = result.result || result;
-      appendLog(`Generated ${String((result.result || result).length)} chars.`, 'ok');
-      setStatus('Ready', 'safe');
-    } catch (err) {
-      appendLog(`Generation failed: ${err.message}`, 'error');
-      setStatus('Error', 'danger');
-    }
-  }
-
-  async function exportModel() {
-    try {
-      const payload = await requestWorker('export', {});
-      const checkpoint = payload.checkpoint;
-      if (!checkpoint) throw new Error('No checkpoint returned.');
-      lastCheckpoint = checkpoint;
-      const blob = new Blob([JSON.stringify(checkpoint, null, 2)], { type: 'application/json' });
+    // ----- Worker plumbing -----
+    function ensureWorker() {
+      if (worker) return worker;
+      const blob = new Blob([WORKER_SOURCE], { type: 'application/javascript' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `gptjs-checkpoint-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      appendLog('Model exported.', 'ok');
-      if (els.autosave.checked) await saveAutosave(checkpoint);
-    } catch (err) {
-      appendLog(`Export failed: ${err.message}`, 'error');
+      worker = new Worker(url);
+      worker.onmessage = onWorkerMessage;
+      worker.onerror = (err) => {
+        busy = false;
+        setStatus('Worker error', 'danger');
+        appendLog(err.message || 'Worker error', 'error');
+        console.error(err);
+      };
+      // Initialize backend
+      worker.postMessage({ type: 'init' });
+      setStatus('Init GPU…', 'warn');
+      return worker;
     }
-  }
-
-  async function importModelFromFile(file) {
-    const text = await file.text();
-    const checkpoint = JSON.parse(text);
-    await requestWorker('import', { checkpoint });
-    lastCheckpoint = checkpoint;
-    if (checkpoint.config) setConfig(checkpoint.config);
-    if (checkpoint.vocab && checkpoint.vocab.length) els.sVocab.textContent = String(checkpoint.vocab.length);
-    if (checkpoint.model && checkpoint.model.V != null) {
-      els.sParams.textContent = fmtNum(checkpoint.model.V * checkpoint.model.C);
+    function postToWorker(msg) {
+      ensureWorker();
+      worker.postMessage(msg);
     }
-    els.btnGen.disabled = false;
-    appendLog('Model imported.', 'ok');
-    setStatus('Ready', 'safe');
-  }
-
-  async function restoreAutosaveToWorker() {
-    const checkpoint = await loadAutosave();
-    if (!checkpoint) {
-      appendLog('No autosave found.', 'warn');
-      return;
+    function requestWorker(type, payload = {}) {
+      return new Promise((resolve, reject) => {
+        const id = ++currentRequestId;
+        pending.set(id, { resolve, reject });
+        postToWorker(Object.assign({ type, id }, payload));
+        setTimeout(() => {
+          if (pending.has(id)) {
+            pending.delete(id);
+            reject(new Error('Worker request timed out.'));
+          }
+        }, 180000);
+      });
     }
-    await requestWorker('import', { checkpoint });
-    lastCheckpoint = checkpoint;
-    if (checkpoint.config) setConfig(checkpoint.config);
-    if (checkpoint.vocab) els.sVocab.textContent = String(checkpoint.vocab.length);
-    els.btnGen.disabled = false;
-    appendLog('Autosave restored.', 'ok');
-  }
 
-  async function clearModel() {
-    busy = false;
-    lastCheckpoint = null;
-    await requestWorker('reset', {});
-    resetUIOnly();
-    els.btnGen.disabled = true;
-    appendLog('Model cleared.', 'warn');
-  }
-
-  function onWorkerMessage(event) {
-    const msg = event.data || {};
-    if (msg.type === 'start') {
-      busy = true;
-      if (msg.vocabSize != null) els.sVocab.textContent = String(msg.vocabSize);
-      if (msg.params != null) els.sParams.textContent = fmtNum(msg.params);
-      setStatus('Training', 'warn');
-      return;
+    // ----- IndexedDB autosave -----
+    async function openAutosaveDB() {
+      if (autosaveDB) return autosaveDB;
+      autosaveDB = await new Promise((resolve, reject) => {
+        const req = indexedDB.open('gptjs-db', 1);
+        req.onupgradeneeded = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains('state')) db.createObjectStore('state');
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error || new Error('IndexedDB error'));
+      });
+      return autosaveDB;
     }
-    if (msg.type === 'progress') {
-      els.sEpoch.textContent = String(msg.epoch || 0);
-      if (msg.loss != null) els.sLoss.textContent = Number(msg.loss).toFixed(4);
-      if (msg.bestLoss != null) els.sBest.textContent = Number(msg.bestLoss).toFixed(4);
-      if (msg.speed != null) els.sSpeed.textContent = Number(msg.speed).toFixed(1) + ' tok/s';
-      if (msg.elapsed != null) els.sTime.textContent = fmtTime(msg.elapsed);
-      if (msg.lossHistory) {
-        lossHist = msg.lossHistory.slice();
+    async function saveAutosave(checkpoint) {
+      if (!els.autosave.checked || !checkpoint) return;
+      try {
+        const db = await openAutosaveDB();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('state', 'readwrite');
+          tx.objectStore('state').put({ checkpoint, ts: Date.now() }, 'latest');
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error || new Error('Autosave failed'));
+        });
+        appendLog('Autosaved checkpoint.', 'ok');
+      } catch (err) {
+        appendLog(`Autosave failed: ${err.message}`, 'warn');
+      }
+    }
+    async function loadAutosave() {
+      try {
+        const db = await openAutosaveDB();
+        const record = await new Promise((resolve, reject) => {
+          const tx = db.transaction('state', 'readonly');
+          const req = tx.objectStore('state').get('latest');
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error || new Error('Load failed'));
+        });
+        return record && record.checkpoint ? record.checkpoint : null;
+      } catch (err) {
+        appendLog(`Autosave load failed: ${err.message}`, 'warn');
+        return null;
+      }
+    }
+    async function clearAutosave() {
+      try {
+        const db = await openAutosaveDB();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction('state', 'readwrite');
+          tx.objectStore('state').delete('latest');
+          tx.oncomplete = () => resolve();
+          tx.onerror = () => reject(tx.error || new Error('Clear failed'));
+        });
+        appendLog('Autosave cleared.', 'ok');
+      } catch (err) {
+        appendLog(`Clear autosave failed: ${err.message}`, 'warn');
+      }
+    }
+
+    // ----- UI updates -----
+    function updateStatsBox(payload) {
+      if (payload.vocabSize != null) els.sVocab.textContent = String(payload.vocabSize);
+      if (payload.params != null) els.sParams.textContent = fmtNum(payload.params);
+      if (payload.epoch != null) els.sEpoch.textContent = String(payload.epoch);
+      if (payload.loss != null) els.sLoss.textContent = Number.isFinite(payload.loss) ? payload.loss.toFixed(4) : '--';
+      if (payload.bestLoss != null) els.sBest.textContent = Number.isFinite(payload.bestLoss) ? payload.bestLoss.toFixed(4) : '--';
+      if (payload.speed != null) els.sSpeed.textContent = Number.isFinite(payload.speed) ? payload.speed.toFixed(0) + ' tok/s' : '--';
+      if (payload.elapsed != null) els.sTime.textContent = fmtTime(payload.elapsed);
+      if (payload.lossHistory) {
+        lossHist = payload.lossHistory.slice();
         drawLossGraph(lossHist);
       }
-      const progress = msg.epochs ? (msg.epoch / msg.epochs) * 100 : 0;
+      if (payload.memory && payload.memory.numBytes != null) {
+        els.sMem.textContent = fmtBytes(payload.memory.numBytes) + ' · ' + payload.memory.numTensors + ' t';
+      }
+      const progress = payload.epochs ? (payload.epoch / payload.epochs) * 100 : 0;
       els.pbar.style.width = `${Math.max(0, Math.min(100, progress))}%`;
-      if (msg.lr != null) els.sMem.textContent = `lr ${Number(msg.lr).toFixed(6)}`;
-      return;
     }
-    if (msg.type === 'autosave') {
-      lastCheckpoint = msg.checkpoint || lastCheckpoint;
-      if (msg.checkpoint && els.autosave.checked) saveAutosave(msg.checkpoint);
-      return;
+
+    function getSeedFallback() {
+      const data = normalizeText(els.data.value);
+      const mode = els.tokenizer.value;
+      const tokens = mode === 'word' ? (data.match(/\s+|[^\s]+/g) || []) : data.split('');
+      for (let i = 0; i < tokens.length; i++) {
+        if (String(tokens[i]).trim().length) return tokens[i];
+      }
+      return data.slice(0, 8) || '';
     }
-    if (msg.type === 'done') {
+
+    // ----- Actions -----
+    async function startTraining() {
+      if (!backendInfo) {
+        appendLog('GPU backend not ready yet.', 'warn');
+        return;
+      }
+      const text = normalizeText(els.data.value);
+      const cfg = readConfig();
+      if (!text.trim()) {
+        appendLog('Training text is empty.', 'warn');
+        return;
+      }
+      const tier = getDeviceTier();
+      const score = estimateLoad(cfg);
+      const risk = getRiskLevel(score, tier);
+      if (risk === 'danger' && !confirm('These settings are very heavy. Continue anyway?')) return;
+      if (risk === 'warning' && !confirm('These settings may lag the GPU. Continue?')) return;
+
+      busy = true;
+      lossHist = [];
+      drawLossGraph(lossHist);
+      els.btnTrain.disabled = true;
+      els.btnStop.disabled = false;
+      els.btnGen.disabled = true;
+      setStatus('Training on ' + (backendInfo.backend || 'gpu').toUpperCase(), 'warn');
+      appendLog(`Training started · backend=${backendInfo.backend} · tokenizer=${cfg.tokenizer} · risk=${risk}`, 'info');
+
+      const stats = countTextStats(text);
+      els.datasetInfo.textContent = `${stats.chars} chars · ${stats.words} words · ${cfg.tokenizer}`;
+
+      postToWorker({ type: 'train', text, config: cfg });
+    }
+
+    function stopTraining() {
+      postToWorker({ type: 'stop' });
+      appendLog('Stop requested.', 'warn');
+    }
+
+    function resetUIOnly() {
+      lossHist = [];
+      drawLossGraph(lossHist);
+      els.output.textContent = '-- train the model first --';
+      els.output.classList.add('empty');
+      els.sEpoch.textContent = '0';
+      els.sLoss.textContent = '--';
+      els.sBest.textContent = '--';
+      els.sSpeed.textContent = '--';
+      els.sTime.textContent = '--';
+      els.sParams.textContent = '--';
+      els.sVocab.textContent = '--';
+      els.pbar.style.width = '0%';
+      setStatus(backendInfo ? 'Ready' : 'Init GPU…', backendInfo ? 'safe' : 'warn');
+    }
+
+    function resetAll() {
+      stopTraining();
       busy = false;
-      els.btnTrain.disabled = false;
+      postToWorker({ type: 'reset' });
+      resetUIOnly();
+      appendLog('Model reset.', 'warn');
+      els.btnTrain.disabled = !backendInfo;
       els.btnStop.disabled = true;
+      els.btnGen.disabled = true;
+    }
+
+    async function generateText() {
+      if (!backendInfo) { appendLog('GPU backend not ready.', 'warn'); return; }
+      const seed = els.seed.value.trim() || getSeedFallback();
+      const cfg = readConfig();
+      const len = Math.max(1, parseInt(els.genLen.value, 10) || 150);
+      if (busy) {
+        appendLog('Wait until training ends or stop it first.', 'warn');
+        return;
+      }
+      setStatus('Generating', 'warn');
+      try {
+        const result = await requestWorker('generate', {
+          seed, length: len,
+          temp: safeNumber(els.tempR.value, 0.8),
+          topK: cfg.topK, topP: cfg.topP
+        });
+        els.output.classList.remove('empty');
+        const text = result.result || '';
+        els.output.textContent = text;
+        appendLog(`Generated ${text.length} chars.`, 'ok');
+        setStatus('Ready', 'safe');
+      } catch (err) {
+        appendLog(`Generation failed: ${err.message}`, 'error');
+        setStatus('Error', 'danger');
+      }
+    }
+
+    async function exportModel() {
+      try {
+        const payload = await requestWorker('export', {});
+        const checkpoint = payload.checkpoint;
+        if (!checkpoint) throw new Error('No checkpoint returned.');
+        lastCheckpoint = checkpoint;
+        const blob = new Blob([JSON.stringify(checkpoint)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gptjs-checkpoint-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        appendLog('Model exported.', 'ok');
+        if (els.autosave.checked) await saveAutosave(checkpoint);
+      } catch (err) {
+        appendLog(`Export failed: ${err.message}`, 'error');
+      }
+    }
+
+    async function importModelFromFile(file) {
+      const text = await file.text();
+      const checkpoint = JSON.parse(text);
+      if (checkpoint.schema && checkpoint.schema < 3) {
+        appendLog('Old checkpoint format (schema < 3) is not supported by the GPU build.', 'error');
+        return;
+      }
+      const payload = await requestWorker('import', { checkpoint });
+      lastCheckpoint = checkpoint;
+      if (checkpoint.config) setConfig(checkpoint.config);
+      if (payload.vocabSize != null) els.sVocab.textContent = String(payload.vocabSize);
+      if (payload.params != null) els.sParams.textContent = fmtNum(payload.params);
       els.btnGen.disabled = false;
-      if (msg.checkpoint) {
-        lastCheckpoint = msg.checkpoint;
-        if (els.autosave.checked) saveAutosave(msg.checkpoint);
-      }
-      if (Number.isFinite(msg.epoch)) els.sEpoch.textContent = String(msg.epoch);
-      if (Number.isFinite(msg.bestLoss)) els.sBest.textContent = Number(msg.bestLoss).toFixed(4);
-      if (Number.isFinite(msg.loss)) els.sLoss.textContent = Number(msg.loss).toFixed(4);
-      setStatus(msg.reason === 'stopped' ? 'Stopped' : 'Ready', msg.reason === 'stopped' ? 'neutral' : 'safe');
-      appendLog(`Training ${msg.reason}.`, msg.reason === 'stopped' ? 'warn' : 'ok');
-      return;
-    }
-    if (msg.type === 'generated' || msg.type === 'exported' || msg.type === 'imported') {
-      const req = pending.get(msg.id);
-      if (req) {
-        pending.delete(msg.id);
-        req.resolve(msg);
-      }
-      if (msg.type === 'imported') {
-        if (msg.params != null) els.sParams.textContent = fmtNum(msg.params);
-        if (msg.vocabSize != null) els.sVocab.textContent = String(msg.vocabSize);
-        els.btnGen.disabled = false;
-      }
-      return;
-    }
-    if (msg.type === 'reset') {
+      appendLog('Model imported.', 'ok');
       setStatus('Ready', 'safe');
-      return;
     }
-    if (msg.type === 'log') {
-      appendLog(msg.message, msg.level || 'info');
-      return;
-    }
-    if (msg.type === 'error') {
-      const req = pending.get(msg.id);
-      if (req) {
-        pending.delete(msg.id);
-        req.reject(new Error(msg.message || 'Worker error'));
+
+    async function restoreAutosaveToWorker() {
+      const checkpoint = await loadAutosave();
+      if (!checkpoint) { appendLog('No autosave found.', 'warn'); return; }
+      if (checkpoint.schema && checkpoint.schema < 3) {
+        appendLog('Autosave is from old format (schema < 3) — clearing it.', 'warn');
+        await clearAutosave();
         return;
       }
-      busy = false;
-      els.btnTrain.disabled = false;
-      els.btnStop.disabled = true;
+      const payload = await requestWorker('import', { checkpoint });
+      lastCheckpoint = checkpoint;
+      if (checkpoint.config) setConfig(checkpoint.config);
+      if (payload.vocabSize != null) els.sVocab.textContent = String(payload.vocabSize);
+      if (payload.params != null) els.sParams.textContent = fmtNum(payload.params);
       els.btnGen.disabled = false;
-      setStatus('Error', 'danger');
-      appendLog(msg.message || 'Worker error', 'error');
+      appendLog('Autosave restored.', 'ok');
     }
-  }
 
-  function setupFileUpload() {
-    const input = els.txtFile;
-    const zone = els.dropZone;
-    const name = els.fileName;
+    async function clearModel() {
+      busy = false;
+      lastCheckpoint = null;
+      try { await requestWorker('reset', {}); } catch (_) { postToWorker({ type: 'reset' }); }
+      resetUIOnly();
+      els.btnGen.disabled = true;
+      appendLog('Model cleared.', 'warn');
+    }
 
-    function loadFile(file) {
-      if (!file) return;
-      if (!/\.txt$/i.test(file.name) && file.type !== 'text/plain') {
-        appendLog('Only .txt files are supported.', 'warn');
+    // ----- Worker incoming -----
+    function onWorkerMessage(event) {
+      const msg = event.data || {};
+      if (msg.type === 'ready') {
+        backendInfo = msg.backend || null;
+        if (backendInfo) {
+          els.sBackend.textContent = (backendInfo.backend || 'gpu').toUpperCase();
+          els.sBackend.dataset.kind = backendInfo.backend === 'webgpu' ? 'safe' : 'warn';
+          if (backendInfo.adapter) {
+            els.sDevice.textContent = backendInfo.adapter;
+          } else {
+            els.sDevice.textContent = `${navigator.hardwareConcurrency || '?'} cores · ${navigator.deviceMemory || '?'} GB`;
+          }
+          appendLog(`GPU backend ready: ${backendInfo.backend}` +
+                    (backendInfo.adapter ? ` (${backendInfo.adapter})` : ''), 'ok');
+          setStatus('Ready', 'safe');
+          els.btnTrain.disabled = false;
+        }
+        if (msg.memory) {
+          els.sMem.textContent = fmtBytes(msg.memory.numBytes) + ' · ' + msg.memory.numTensors + ' t';
+        }
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
-        const text = String(reader.result || '');
-        els.data.value = text;
-        name.textContent = file.name;
-        updateSafetyUI();
-        saveSettingsDebounced();
-        appendLog(`Loaded ${file.name}.`, 'ok');
-      };
-      reader.readAsText(file);
+      if (msg.type === 'start') {
+        busy = true;
+        if (msg.vocabSize != null) els.sVocab.textContent = String(msg.vocabSize);
+        if (msg.params != null) els.sParams.textContent = fmtNum(msg.params);
+        if (msg.backend) {
+          backendInfo = msg.backend;
+          els.sBackend.textContent = (backendInfo.backend || 'gpu').toUpperCase();
+        }
+        setStatus('Training on ' + ((backendInfo && backendInfo.backend) || 'gpu').toUpperCase(), 'warn');
+        return;
+      }
+      if (msg.type === 'progress') {
+        updateStatsBox(msg);
+        return;
+      }
+      if (msg.type === 'autosave') {
+        lastCheckpoint = msg.checkpoint || lastCheckpoint;
+        if (msg.checkpoint && els.autosave.checked) saveAutosave(msg.checkpoint);
+        return;
+      }
+      if (msg.type === 'done') {
+        busy = false;
+        els.btnTrain.disabled = !backendInfo;
+        els.btnStop.disabled = true;
+        els.btnGen.disabled = false;
+        if (msg.checkpoint) {
+          lastCheckpoint = msg.checkpoint;
+          if (els.autosave.checked) saveAutosave(msg.checkpoint);
+        }
+        if (Number.isFinite(msg.epoch)) els.sEpoch.textContent = String(msg.epoch);
+        if (Number.isFinite(msg.bestLoss)) els.sBest.textContent = msg.bestLoss.toFixed(4);
+        if (Number.isFinite(msg.loss)) els.sLoss.textContent = msg.loss.toFixed(4);
+        setStatus(msg.reason === 'stopped' ? 'Stopped' : 'Ready', msg.reason === 'stopped' ? 'neutral' : 'safe');
+        appendLog(`Training ${msg.reason}.`, msg.reason === 'stopped' ? 'warn' : 'ok');
+        return;
+      }
+      if (msg.type === 'generated' || msg.type === 'exported' || msg.type === 'imported' || msg.type === 'reset') {
+        const req = pending.get(msg.id);
+        if (req) {
+          pending.delete(msg.id);
+          req.resolve(msg);
+        }
+        if (msg.type === 'imported') {
+          if (msg.params != null) els.sParams.textContent = fmtNum(msg.params);
+          if (msg.vocabSize != null) els.sVocab.textContent = String(msg.vocabSize);
+          els.btnGen.disabled = false;
+        }
+        if (msg.type === 'reset') setStatus('Ready', 'safe');
+        return;
+      }
+      if (msg.type === 'log') {
+        appendLog(msg.message, msg.level || 'info');
+        return;
+      }
+      if (msg.type === 'error') {
+        const req = pending.get(msg.id);
+        if (req) {
+          pending.delete(msg.id);
+          req.reject(new Error(msg.message || 'Worker error'));
+          return;
+        }
+        busy = false;
+        els.btnTrain.disabled = !backendInfo;
+        els.btnStop.disabled = true;
+        els.btnGen.disabled = !!backendInfo;
+        setStatus('Error', 'danger');
+        appendLog(msg.message || 'Worker error', 'error');
+      }
     }
 
-    input.addEventListener('change', () => loadFile(input.files && input.files[0]));
-    zone.addEventListener('click', () => input.click());
-    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
-    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
-    zone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      zone.classList.remove('dragover');
-      const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-      loadFile(file);
-    });
-  }
+    // ----- File upload -----
+    function setupFileUpload() {
+      const input = els.txtFile;
+      const zone = els.dropZone;
+      const name = els.fileName;
+      function loadFile(file) {
+        if (!file) return;
+        if (!/\.txt$/i.test(file.name) && file.type !== 'text/plain') {
+          appendLog('Only .txt files are supported.', 'warn');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+          const text = String(reader.result || '');
+          els.data.value = text;
+          name.textContent = file.name;
+          updateSafetyUI();
+          saveSettingsDebounced();
+          appendLog(`Loaded ${file.name}.`, 'ok');
+        };
+        reader.readAsText(file);
+      }
+      input.addEventListener('change', () => loadFile(input.files && input.files[0]));
+      zone.addEventListener('click', () => input.click());
+      zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        loadFile(file);
+      });
+    }
 
-  function syncRangeFill(input) {
-    const min = Number(input.min || 0);
-    const max = Number(input.max || 100);
-    const value = Number(input.value || min);
-    const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
-    input.style.setProperty('--fill', `${pct}%`);
-    input.setAttribute('aria-valuenow', String(value));
-  }
-
-  function initTempControl() {
-    els.tempV.textContent = Number(els.tempR.value).toFixed(1);
-    syncRangeFill(els.tempR);
-    els.tempR.addEventListener('input', () => {
+    // ----- Range -----
+    function syncRangeFill(input) {
+      const min = Number(input.min || 0);
+      const max = Number(input.max || 100);
+      const value = Number(input.value || min);
+      const pct = max > min ? ((value - min) / (max - min)) * 100 : 0;
+      input.style.setProperty('--fill', `${pct}%`);
+      input.setAttribute('aria-valuenow', String(value));
+    }
+    function initTempControl() {
       els.tempV.textContent = Number(els.tempR.value).toFixed(1);
       syncRangeFill(els.tempR);
-      saveSettingsDebounced();
-    });
-  }
-
-  function updateSafetyUI() {
-    const cfg = readConfig();
-    const tier = getDeviceTier();
-    const score = estimateLoad(cfg);
-    const risk = getRiskLevel(score, tier);
-    const rec = recommendedPreset(tier);
-
-    els.sDevice.textContent = `${tier.toUpperCase()} · ${navigator.hardwareConcurrency || '?'} cores · ${navigator.deviceMemory || '?'} GB`;
-    els.sRisk.textContent = risk.toUpperCase();
-    els.sRisk.dataset.kind = risk;
-    els.sRecommend.textContent = `Suggested: ctx ${rec.blockSize}, embd ${rec.nEmbd}, heads ${rec.nHeads}, layers ${rec.nLayers}, batch ${rec.batch}`;
-    els.datasetInfo.textContent = `${countTextStats(els.data.value).chars} chars · ${countTextStats(els.data.value).words} words · load ${fmtNum(score)}`;
-    els.sTokenCount.textContent = cfg.tokenizer;
-  }
-
-  function bindEvents() {
-    els.btnTrain.addEventListener('click', startTraining);
-    els.btnStop.addEventListener('click', stopTraining);
-    els.btnReset.addEventListener('click', resetAll);
-    els.btnGen.addEventListener('click', generateText);
-    els.btnExportModel.addEventListener('click', exportModel);
-    els.btnImportModel.addEventListener('click', () => els.modelFile.click());
-    els.btnClearModel.addEventListener('click', clearModel);
-    els.btnLoadAutosave.addEventListener('click', restoreAutosaveToWorker);
-    els.btnClearAutosave.addEventListener('click', clearAutosave);
-    els.btnApplySafe.addEventListener('click', () => applyPreset(recommendedPreset(getDeviceTier())));
-    els.btnSafePreset.addEventListener('click', () => applyPreset('low'));
-    els.btnBalancedPreset.addEventListener('click', () => applyPreset('mid'));
-    els.btnMaxPreset.addEventListener('click', () => applyPreset('high'));
-    els.modelFile.addEventListener('change', async () => {
-      const file = els.modelFile.files && els.modelFile.files[0];
-      if (!file) return;
-      try {
-        await importModelFromFile(file);
-      } catch (err) {
-        appendLog(`Import failed: ${err.message}`, 'error');
-      } finally {
-        els.modelFile.value = '';
-      }
-    });
-
-    const watched = ['blockSize','nEmbd','nHeads','nLayers','epochs','batch','lr','lrEnd','dropout','tokenizer','topK','topP','seed','genLen','tempR','patience','minDelta','autosave','autosaveEvery','data'];
-    watched.forEach(id => {
-      const el = els[id];
-      const evt = id === 'data' ? 'input' : (el.type === 'checkbox' || el.tagName === 'SELECT' || el.type === 'range' ? 'change' : 'input');
-      el.addEventListener(evt, () => {
-        if (id === 'tempR') { els.tempV.textContent = Number(els.tempR.value).toFixed(1); syncRangeFill(els.tempR); }
-        updateSafetyUI();
+      els.tempR.addEventListener('input', () => {
+        els.tempV.textContent = Number(els.tempR.value).toFixed(1);
+        syncRangeFill(els.tempR);
         saveSettingsDebounced();
       });
-    });
+    }
 
-    window.addEventListener('resize', () => drawLossGraph(lossHist));
-  }
+    // ----- Safety panel -----
+    function updateSafetyUI() {
+      const cfg = readConfig();
+      const tier = getDeviceTier();
+      const score = estimateLoad(cfg);
+      const risk = getRiskLevel(score, tier);
+      const rec = recommendedPreset(tier);
 
-  async function boot() {
-    ensureWorker();
-    setupFileUpload();
-    bindEvents();
-    initTempControl();
-    loadSettings();
-    updateSafetyUI();
-    drawLossGraph(lossHist);
-    els.seed.value = '';
-    els.btnStop.disabled = true;
-    els.btnGen.disabled = true;
-    setStatus('Ready', 'safe');
-    appendLog('ready.', 'info');
-    refreshMemory();
-    setInterval(refreshMemory, 1000);
-    try {
-      await openAutosaveDB();
-      const checkpoint = await loadAutosave();
-      if (checkpoint) appendLog('Autosave available. Use restore autosave to load it.', 'info');
-    } catch (_) {}
-  }
+      if (!backendInfo) {
+        els.sDevice.textContent = `${navigator.hardwareConcurrency || '?'} cores · ${navigator.deviceMemory || '?'} GB`;
+      }
+      els.sRisk.textContent = risk.toUpperCase();
+      els.sRisk.dataset.kind = risk;
+      els.sRecommend.textContent =
+        `Suggested for ${tier} tier: ctx ${rec.blockSize}, embd ${rec.nEmbd}, heads ${rec.nHeads}, layers ${rec.nLayers}, batch ${rec.batch}.`;
+      const stats = countTextStats(els.data.value);
+      els.datasetInfo.textContent = `${stats.chars} chars · ${stats.words} words · load ${fmtNum(score)}`;
+      els.sTokenCount.textContent = cfg.tokenizer;
+    }
 
-  boot();
+    // ----- Wiring -----
+    function bindEvents() {
+      els.btnTrain.addEventListener('click', startTraining);
+      els.btnStop.addEventListener('click', stopTraining);
+      els.btnReset.addEventListener('click', resetAll);
+      els.btnGen.addEventListener('click', generateText);
+      els.btnExportModel.addEventListener('click', exportModel);
+      els.btnImportModel.addEventListener('click', () => els.modelFile.click());
+      els.btnClearModel.addEventListener('click', clearModel);
+      els.btnLoadAutosave.addEventListener('click', restoreAutosaveToWorker);
+      els.btnClearAutosave.addEventListener('click', clearAutosave);
+      els.btnApplySafe.addEventListener('click', () => applyPreset(recommendedPreset(getDeviceTier())));
+      els.btnSafePreset.addEventListener('click', () => applyPreset('low'));
+      els.btnBalancedPreset.addEventListener('click', () => applyPreset('mid'));
+      els.btnMaxPreset.addEventListener('click', () => applyPreset('high'));
+      els.modelFile.addEventListener('change', async () => {
+        const file = els.modelFile.files && els.modelFile.files[0];
+        if (!file) return;
+        try { await importModelFromFile(file); }
+        catch (err) { appendLog(`Import failed: ${err.message}`, 'error'); }
+        finally { els.modelFile.value = ''; }
+      });
 
-  window.GPTJS = {
-    applyPreset,
-    updateSafetyUI,
-    saveSettings,
-    loadSettings,
-    restoreAutosaveToWorker
-  };
-})();
+      const watched = ['blockSize','nEmbd','nHeads','nLayers','epochs','batch','lr','lrEnd',
+                       'warmup','weightDecay','gradClip','dropout','tokenizer','topK','topP',
+                       'seed','genLen','tempR','patience','minDelta','autosave','autosaveEvery','data'];
+      watched.forEach(id => {
+        const el = els[id];
+        if (!el) return;
+        const evt = id === 'data'
+          ? 'input'
+          : (el.type === 'checkbox' || el.tagName === 'SELECT' || el.type === 'range' ? 'change' : 'input');
+        el.addEventListener(evt, () => {
+          if (id === 'tempR') {
+            els.tempV.textContent = Number(els.tempR.value).toFixed(1);
+            syncRangeFill(els.tempR);
+          }
+          updateSafetyUI();
+          saveSettingsDebounced();
+        });
+      });
 
+      window.addEventListener('resize', () => drawLossGraph(lossHist));
+    }
+
+    // ----- Boot -----
+    async function boot() {
+      setupFileUpload();
+      bindEvents();
+      initTempControl();
+      loadSettings();
+      updateSafetyUI();
+      drawLossGraph(lossHist);
+      els.seed.value = '';
+      els.btnStop.disabled = true;
+      els.btnGen.disabled = true;
+      els.btnTrain.disabled = true;
+      setStatus('Init GPU…', 'warn');
+      appendLog('Booting GPU worker (TensorFlow.js + WebGPU)…', 'info');
+      ensureWorker();
+      try {
+        await openAutosaveDB();
+        const checkpoint = await loadAutosave();
+        if (checkpoint) appendLog('Autosave available. Use restore autosave to load it.', 'info');
+      } catch (_) {}
+    }
+
+    boot();
+
+    window.GPTJS = {
+      applyPreset,
+      updateSafetyUI,
+      saveSettings,
+      loadSettings,
+      restoreAutosaveToWorker
+    };
+  })();
   </script>
 </body>
 </html>
