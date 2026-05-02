@@ -6,7 +6,7 @@
 <meta name="theme-color" content="#080808">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>transformer.js · gpu</title>
+<title>transformer.js · GPU</title>
 <style>
 /* =============================================================================
    transformer.js · Apple HIG — dark, professional, real glass
@@ -476,7 +476,7 @@ canvas {
           <h1>transformer.js</h1>
           <p>Decoder transformer · TensorFlow.js · WebGPU/WebGL · GPU-only training · Web Worker · autosave IndexedDB</p>
         </div>
-        <div id="statusPill" class="status-pill" data-kind="safe">Init…</div>
+        <div id="statusPill" class="status-pill" data-kind="safe">Initializing GPU…</div>
       </div>
     </div>
 
@@ -508,16 +508,16 @@ A train crosses the bridge at dusk.</textarea>
         <section class="card">
           <h2>Hyperparameters</h2>
           <div class="fields">
-            <div class="field"><label for="blockSize">ctx len</label><input id="blockSize" class="input" type="number" min="4" max="512" value="64"></div>
+            <div class="field"><label for="blockSize">context length</label><input id="blockSize" class="input" type="number" min="4" max="512" value="64"></div>
             <div class="field"><label for="nEmbd">n_embd</label><input id="nEmbd" class="input" type="number" min="8" max="1024" step="8" value="128"></div>
             <div class="field"><label for="nHeads">n_heads</label><input id="nHeads" class="input" type="number" min="1" max="32" value="8"></div>
             <div class="field"><label for="nLayers">n_layers</label><input id="nLayers" class="input" type="number" min="1" max="16" value="4"></div>
             <div class="field"><label for="epochs">steps</label><input id="epochs" class="input" type="number" min="1" max="100000" step="100" value="3000"></div>
             <div class="field"><label for="batch">batch</label><input id="batch" class="input" type="number" min="1" max="256" value="16"></div>
             <div class="field"><label for="lr">lr</label><input id="lr" class="input" type="number" min="0.000001" step="0.0001" value="0.0006"></div>
-            <div class="field"><label for="lrEnd">lr end</label><input id="lrEnd" class="input" type="number" min="0.000001" step="0.00001" value="0.00006"></div>
+            <div class="field"><label for="lrEnd">learning rate end</label><input id="lrEnd" class="input" type="number" min="0.000001" step="0.00001" value="0.00006"></div>
             <div class="field"><label for="warmup">warmup</label><input id="warmup" class="input" type="number" min="0" max="10000" value="100"></div>
-            <div class="field"><label for="weightDecay">w decay</label><input id="weightDecay" class="input" type="number" min="0" max="1" step="0.01" value="0.1"></div>
+            <div class="field"><label for="weightDecay">weight decay</label><input id="weightDecay" class="input" type="number" min="0" max="1" step="0.01" value="0.1"></div>
             <div class="field"><label for="gradClip">grad clip</label><input id="gradClip" class="input" type="number" min="0" max="100" step="0.1" value="1.0"></div>
             <div class="field"><label for="dropout">dropout</label><input id="dropout" class="input" type="number" min="0" max="0.5" step="0.05" value="0.1"></div>
             <div class="field"><label for="tokenizer">tokenizer</label>
@@ -547,7 +547,7 @@ A train crosses the bridge at dusk.</textarea>
             <button id="btnBalancedPreset" class="btn">Balanced preset</button>
             <button id="btnMaxPreset" class="btn">Max preset</button>
           </div>
-          <div class="note">L'entraînement se fait dans un Web Worker, sur le GPU. Si aucun backend GPU n'est disponible (ni WebGPU ni WebGL), le worker refuse de démarrer.</div>
+          <div class="note">Training runs in a Web Worker on the GPU. If no GPU backend is available (neither WebGPU nor WebGL), the worker refuses to start.</div>
         </section>
 
         <section class="card">
@@ -562,7 +562,7 @@ A train crosses the bridge at dusk.</textarea>
             <div class="metric"><div class="k">best</div><div id="sBest" class="v">--</div></div>
             <div class="metric"><div class="k">speed</div><div id="sSpeed" class="v small">--</div></div>
             <div class="metric"><div class="k">elapsed</div><div id="sTime" class="v small">--</div></div>
-            <div class="metric"><div class="k">gpu mem</div><div id="sMem" class="v small">--</div></div>
+            <div class="metric"><div class="k">GPU memory</div><div id="sMem" class="v small">--</div></div>
           </div>
         </section>
 
@@ -571,7 +571,7 @@ A train crosses the bridge at dusk.</textarea>
           <div class="section-tight">
             <div class="fields">
               <div class="field" style="grid-column: span 2;"><label for="seed">seed</label><input id="seed" class="input" type="text" placeholder="Start typing here"></div>
-              <div class="field"><label for="genLen">len</label><input id="genLen" class="input" type="number" min="1" max="2000" value="150"></div>
+              <div class="field"><label for="genLen">length</label><input id="genLen" class="input" type="number" min="1" max="2000" value="150"></div>
               <div class="field range-field">
                 <div class="field-head">
                   <label for="tempR">temp</label>
@@ -599,7 +599,7 @@ A train crosses the bridge at dusk.</textarea>
           </div>
           <input id="modelFile" type="file" accept=".json,application/json" hidden>
           <div class="footer-note">
-            Checkpoints portables (JSON). Le format a changé pour stocker les poids du modèle TF.js (schema 3) — les anciens checkpoints v2 ne sont plus compatibles.
+            Portable checkpoints (JSON). The format changed to store TF.js model weights (schema 3) - older v2 checkpoints are no longer compatible.
           </div>
         </section>
       </div>
@@ -620,7 +620,7 @@ A train crosses the bridge at dusk.</textarea>
           <div class="metric" style="margin-top:12px;">
             <div class="k">tokenizer</div><div id="sTokenCount" class="v small">char</div>
           </div>
-          <div class="note">L'entraînement est forcé sur GPU. WebGPU est privilégié, WebGL est utilisé en fallback. Le CPU est explicitement refusé.</div>
+          <div class="note">Training is forced onto the GPU. WebGPU is preferred; WebGL is used as a fallback. CPU is explicitly refused.</div>
         </section>
 
         <section class="card">
@@ -1223,9 +1223,16 @@ async function trainAsync(payload) {
   var badCount = 0;
   var totalSeen = 0;
   var paramNames = model.trainables().map(function (v) { return v.name; });
+  var maxBytesSoft = Math.max(128 * 1024 * 1024, parseInt(cfg.maxMemoryBytes, 10) || 512 * 1024 * 1024);
 
   for (var step = 1; step <= steps; step++) {
     if (STATE.stopRequested) break;
+
+    var mem = postMemoryUsage();
+    if (mem && mem.numBytes > maxBytesSoft) {
+      postStatus('error', { message: 'Memory limit reached, stopping training before a crash.' });
+      break;
+    }
 
     // Build a mini-batch from random offsets — done synchronously then uploaded once.
     var inBuf = new Int32Array(batch * blockSize);
@@ -1245,15 +1252,17 @@ async function trainAsync(payload) {
 
     var lossVal;
     try {
+      tf.engine().startScope();
       var grads = tf.variableGrads(function () {
         return model.lossAndLogits(inputs, targets);
       }, model.trainables());
       lossVal = (await grads.value.data())[0];
       grads.value.dispose();
       optimizer.step(grads.grads, gradClip);
-      // Free per-step grads
       Object.keys(grads.grads).forEach(function (k) { grads.grads[k].dispose(); });
+      tf.engine().endScope();
     } catch (err) {
+      try { tf.engine().endScope(); } catch (_) {}
       inputs.dispose(); targets.dispose();
       postStatus('error', { message: 'Training step failed: ' + (err.message || err) });
       break;
@@ -1267,7 +1276,7 @@ async function trainAsync(payload) {
     STATE.stats.epoch = step;
     STATE.stats.smoothLoss = smooth;
     STATE.stats.lossHistory.push(smooth);
-    if (STATE.stats.lossHistory.length > 600) STATE.stats.lossHistory.shift();
+    if (STATE.stats.lossHistory.length > 300) STATE.stats.lossHistory.shift();
 
     if (smooth < best - minDelta) {
       best = smooth;
@@ -1284,14 +1293,19 @@ async function trainAsync(payload) {
         epoch: step, epochs: steps,
         loss: smooth, bestLoss: best,
         lr: lr, speed: speed, elapsed: elapsed,
-        lossHistory: STATE.stats.lossHistory.slice(-200),
+        lossHistory: STATE.stats.lossHistory.slice(-120),
         memory: postMemoryUsage()
       });
     }
 
     if (autosaveEnabled && step % autosaveEvery === 0) {
-      var ckpt = await makeCheckpoint(STATE);
-      postStatus('autosave', { checkpoint: ckpt });
+      var mem2 = postMemoryUsage();
+      if (!mem2 || mem2.numBytes < maxBytesSoft * 0.75) {
+        var ckpt = await makeCheckpoint(STATE);
+        postStatus('autosave', { checkpoint: ckpt });
+      } else {
+        postStatus('log', { level: 'warn', message: 'Autosave skipped because memory is getting tight.' });
+      }
     }
 
     if (badCount >= patience) {
@@ -1299,13 +1313,18 @@ async function trainAsync(payload) {
       break;
     }
 
-    // Yield to keep the worker responsive (await already gives a microtask boundary).
     if (step % 4 === 0) await sleep(0);
   }
 
   STATE.training = false;
   var reason = STATE.stopRequested ? 'stopped' : 'finished';
-  var checkpoint = await makeCheckpoint(STATE);
+  var checkpoint = null;
+  var finalMem = postMemoryUsage();
+  if (!finalMem || finalMem.numBytes < maxBytesSoft * 0.85) {
+    checkpoint = await makeCheckpoint(STATE);
+  } else {
+    postStatus('log', { level: 'warn', message: 'Final checkpoint skipped because memory was too high.' });
+  }
   postStatus('done', {
     reason: reason,
     checkpoint: checkpoint,
@@ -1348,14 +1367,13 @@ async function generateAsync(msg) {
     for (var q = 0; q < trimmed.length; q++) padded[pad + q] = trimmed[q];
 
     var lastIdx = Tmax - 1;
-    var probsArr = await tf.tidy(function () {
-      var input = tf.tensor2d(padded, [1, Tmax], 'int32');
-      var logits = STATE.model.forward(input, false);   // [1, T, V]
-      var lastLogits = logits.slice([0, lastIdx, 0], [1, 1, STATE.model.V]).reshape([STATE.model.V]);
-      var scaled = lastLogits.div(temp);
-      var probs = tf.softmax(scaled);
-      return probs.array();
-    });
+    var input = tf.tensor2d(padded, [1, Tmax], 'int32');
+    var logits = STATE.model.forward(input, false);   // [1, T, V]
+    var lastLogits = logits.slice([0, lastIdx, 0], [1, 1, STATE.model.V]).reshape([STATE.model.V]);
+    var scaled = lastLogits.div(temp);
+    var probs = tf.softmax(scaled);
+    var probsArr = await probs.data();
+    input.dispose(); logits.dispose(); lastLogits.dispose(); scaled.dispose(); probs.dispose();
 
     var next = sampleFromDistribution(probsArr, topK, topP);
     ctx.push(next);
@@ -1695,7 +1713,7 @@ self.onmessage = async function (e) {
       };
       // Initialize backend
       worker.postMessage({ type: 'init' });
-      setStatus('Init GPU…', 'warn');
+      setStatus('Initializing GPU…', 'warn');
       return worker;
     }
     function postToWorker(msg) {
@@ -1856,7 +1874,7 @@ self.onmessage = async function (e) {
       els.sParams.textContent = '--';
       els.sVocab.textContent = '--';
       els.pbar.style.width = '0%';
-      setStatus(backendInfo ? 'Ready' : 'Init GPU…', backendInfo ? 'safe' : 'warn');
+      setStatus(backendInfo ? 'Ready' : 'Initializing GPU…', backendInfo ? 'safe' : 'warn');
     }
 
     function resetAll() {
@@ -2210,7 +2228,7 @@ self.onmessage = async function (e) {
       els.btnStop.disabled = true;
       els.btnGen.disabled = true;
       els.btnTrain.disabled = true;
-      setStatus('Init GPU…', 'warn');
+      setStatus('Initializing GPU…', 'warn');
       appendLog('Booting GPU worker (TensorFlow.js + WebGPU)…', 'info');
       ensureWorker();
       try {
