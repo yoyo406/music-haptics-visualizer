@@ -1,85 +1,157 @@
 # transformer.js · GPU
 
-Application web **tout-en-un** en un seul fichier HTML pour entraîner un mini modèle de type GPT dans le navigateur, avec **TensorFlow.js**, **WebGPU/WebGL**, **Web Worker** et **autosave IndexedDB**. Le projet charge les bibliothèques via CDN et force l’entraînement sur GPU, parce que visiblement laisser le CPU souffrir n’était pas assez élégant.
+A minimal GPT-style decoder transformer that runs **entirely in the browser** using **TensorFlow.js** with **WebGPU/WebGL acceleration**.
 
-## Fonctionnalités
+No backend. No server. Just your browser, your GPU, and questionable life choices.
 
-- Entraînement d’un petit **decoder transformer** dans le navigateur
-- Backend GPU prioritaire :
-  - **WebGPU** d’abord
-  - **WebGL** en fallback
-  - **CPU refusé**
-- Entraînement dans un **Web Worker**
-- Tokenizer au choix :
-  - **char**
-  - **word**
-- Hyperparamètres configurables :
-  - `ctx len`, `n_embd`, `n_heads`, `n_layers`
-  - `steps`, `batch`, `lr`, `lr end`, `warmup`
-  - `weight decay`, `grad clip`, `dropout`
-  - `top-k`, `top-p`, `patience`, `min delta`
-- Génération de texte après entraînement
-- Export / import de checkpoints JSON
-- **Autosave** dans **IndexedDB**
-- Courbe de loss, métriques d’entraînement, journal d’événements
-- Interface dark style “Apple HIG” avec responsive design
+---
 
-## Aperçu technique
+## ✨ Features
 
-- **Modèle** : mini transformer causal de type GPT
-- **Optimiseur** : AdamW maison avec clipping global du gradient
-- **Scheduling** : warmup linéaire puis cosine decay
-- **Checkpoint** : format JSON `schema 3`
-- **Stockage local** :
-  - paramètres utilisateur dans `localStorage`
-  - autosave du modèle dans `IndexedDB`
+- ⚡ **GPU-only training** (WebGPU → fallback WebGL)
+- 🧠 **Mini GPT architecture** (decoder transformer)
+- 🧵 **Web Worker training** (non-blocking UI)
+- 💾 **Autosave with IndexedDB**
+- 📦 **Checkpoint export/import (JSON)**
+- 🔤 **Char-level & word-level tokenization**
+- 📈 **Live training metrics & loss graph**
+- 🎛️ **Full hyperparameter control**
+- ✍️ **Text generation with temperature, top-k, top-p**
 
-## Utilisation
+---
 
-1. Ouvre `index.html` dans un navigateur compatible.
-2. Attends la détection du backend GPU.
-3. Ajoute ou remplace le texte d’entraînement.
-4. Choisis les hyperparamètres.
-5. Clique sur **Train on GPU**.
-6. Une fois le modèle entraîné, utilise la section **Generation** pour produire du texte.
-7. Exporte le checkpoint si tu veux le sauvegarder.
+## 🚀 How It Works
 
-## Exigences
+This app implements a small transformer model directly in the browser:
 
-- Un navigateur moderne
-- **WebGPU** ou **WebGL**
-- Connexion réseau au premier chargement, car les scripts TensorFlow.js sont chargés via CDN
+- Tokenizes input text (char or word)
+- Builds a vocabulary
+- Trains a GPT-like model using TensorFlow.js
+- Runs everything on GPU via WebGPU or WebGL
+- Generates text from a trained model
 
-## Limitations
+All computation happens locally. Nothing is sent anywhere.
 
-- Le projet est conçu pour de petits jeux de données
-- Les anciens checkpoints **v2** ne sont pas compatibles avec le format actuel **schema 3**
-- Si aucun backend GPU n’est disponible, l’entraînement ne démarre pas
-- Tout est dans un seul fichier HTML, donc l’entretien du code demande un peu d’amour, ou au moins de la patience
+---
 
-## Structure
+## 🖥️ Requirements
 
-```text
-index.html
-```
+- A modern browser (Chrome, Edge recommended)
+- WebGPU support (preferred) or WebGL fallback
+- Decent GPU (otherwise… good luck)
 
-## Notes
+CPU training is **disabled on purpose**.
 
-- Le worker charge :
-  - `@tensorflow/tfjs`
-  - `@tensorflow/tfjs-backend-webgpu`
-- La génération utilise :
-  - température
-  - top-k
-  - top-p
-- L’interface affiche aussi :
-  - backend détecté
-  - appareil
-  - mémoire GPU
-  - vocabulaire
-  - nombre de paramètres
-  - loss actuelle et meilleure loss
+---
 
-## Licence
+## 📂 Usage
 
-Ajoute ici la licence de ton choix si le projet doit être publié sur GitHub.
+### 1. Load data
+- Paste text or upload a `.txt` file
+
+### 2. Configure model
+Adjust parameters like:
+- `n_embd`
+- `n_heads`
+- `n_layers`
+- `block size`
+- `batch size`
+- learning rate, etc.
+
+### 3. Train
+Click **"Train on GPU"**
+
+Training runs inside a Web Worker.
+
+### 4. Generate
+- Enter a seed
+- Click **Generate**
+
+---
+
+## 💾 Checkpoints
+
+- Export model → JSON file
+- Import model → restore training or generate
+- Autosave → stored in IndexedDB
+
+⚠️ Only **schema v3** checkpoints are supported.
+
+---
+
+## ⚠️ Limitations
+
+- Memory usage grows quickly with model size
+- Large models may crash your browser
+- Autosave can cause temporary memory spikes
+- Performance depends heavily on your GPU
+
+---
+
+## 🛠️ Technical Details
+
+- Framework: TensorFlow.js
+- Backend:
+  - WebGPU (preferred)
+  - WebGL (fallback)
+- Architecture:
+  - Decoder-only transformer (GPT-like)
+  - Multi-head self-attention
+  - LayerNorm + GELU
+  - AdamW optimizer
+  - Gradient clipping
+  - Cosine LR schedule with warmup
+
+---
+
+## 🧪 Safety Mechanisms
+
+- GPU-only enforcement (no CPU fallback)
+- Gradient clipping
+- Early stopping (patience)
+- Memory monitoring
+- Optional autosave throttling
+
+---
+
+## 📸 UI
+
+- Apple HIG-inspired dark UI
+- Glassmorphism styling
+- Real-time metrics dashboard
+- Training graph canvas
+
+---
+
+## 📌 Notes
+
+- Training large models in-browser is experimental
+- Expect crashes if you push it too far
+- This is for learning and experimentation, not production
+
+---
+
+## 📜 License
+
+MIT License
+
+---
+
+## 👀 Why This Exists
+
+Because running a transformer in a browser is:
+- unnecessary
+- inefficient
+- and somehow very satisfying
+
+---
+
+## 💡 Future Improvements
+
+- Better memory management
+- Model quantization
+- Streaming generation
+- Multi-file datasets
+- Fine-tuning support
+
+---
